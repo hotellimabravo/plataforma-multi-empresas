@@ -1188,6 +1188,40 @@ body {
 	gap: 10px;
 }
 
+.modal-backdrop {
+	position: fixed;
+	top: 0;
+	left: 0;
+	right: 0;
+	bottom: 0;
+	background: rgba(15, 23, 42, 0.6);
+	backdrop-filter: blur(4px);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	padding: 16px;
+	z-index: 1000;
+}
+
+.modal-dialog {
+	background: #ffffff;
+	border-radius: var(--radius-md);
+	width: 100%;
+	max-width: 580px;
+	box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 10px 10px -5px rgba(0, 0, 0, 0.08);
+	overflow: hidden;
+}
+
+.btn-close-modal {
+	background: transparent;
+	border: none;
+	font-size: 1.5rem;
+	line-height: 1;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 4px;
+}
+
 /* Grid de Formas de Pagamento no Caixa */
 .payment-breakdown-grid {
 	display: grid;
@@ -2445,6 +2479,212 @@ body {
 @keyframes fadeIn {
 	from { opacity: 0; transform: translateY(-4px); }
 	to { opacity: 1; transform: translateY(0); }
+}
+
+/* ==========================================================================
+   Universal In-App Toast & Feedback System
+   ========================================================================== */
+.ui-toast-container {
+	position: fixed;
+	top: 20px;
+	right: 20px;
+	z-index: 10000;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	max-width: 90vw;
+	width: 380px;
+	pointer-events: none;
+}
+
+@media (max-width: 600px) {
+	.ui-toast-container {
+		top: 14px;
+		right: 14px;
+		left: 14px;
+		width: auto;
+	}
+}
+
+.ui-toast {
+	pointer-events: auto;
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	padding: 14px 18px;
+	border-radius: var(--radius-md);
+	background: #ffffff;
+	color: var(--text-main);
+	font-size: 0.9rem;
+	font-weight: 500;
+	box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+	border: 1px solid var(--border-color);
+	animation: toastSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+	transition: all 0.2s ease;
+}
+
+.ui-toast-leaving {
+	opacity: 0;
+	transform: translateX(30px);
+}
+
+.ui-toast-icon {
+	font-size: 1.25rem;
+	line-height: 1;
+	flex-shrink: 0;
+}
+
+.ui-toast-msg {
+	flex: 1;
+	line-height: 1.4;
+}
+
+.ui-toast-close {
+	background: transparent;
+	border: none;
+	font-size: 1.3rem;
+	line-height: 1;
+	color: var(--text-muted);
+	cursor: pointer;
+	padding: 2px 4px;
+	opacity: 0.6;
+	transition: opacity 0.15s;
+}
+
+.ui-toast-close:hover {
+	opacity: 1;
+}
+
+.ui-toast-success {
+	background: #f0fdf4;
+	border-color: #86efac;
+	color: #166534;
+}
+
+.ui-toast-error {
+	background: #fef2f2;
+	border-color: #fca5a5;
+	color: #991b1b;
+}
+
+.ui-toast-warning {
+	background: #fffbeb;
+	border-color: #fde68a;
+	color: #92400e;
+}
+
+.ui-toast-info {
+	background: #eff6ff;
+	border-color: #93c5fd;
+	color: #1e40af;
+}
+
+@keyframes toastSlideIn {
+	from {
+		opacity: 0;
+		transform: translateY(-12px) scale(0.95);
+	}
+	to {
+		opacity: 1;
+		transform: translateY(0) scale(1);
+	}
+}
+
+/* ==========================================================================
+   Fluid UI Refinements & Micro-Interactions
+   ========================================================================== */
+.btn {
+	transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.btn:active {
+	transform: scale(0.98);
+}
+
+/* Evita que botões de ações em tabelas quebrem em 100% no mobile */
+@media (max-width: 768px) {
+	.tabela .btn,
+	.btn-action-group .btn,
+	.modal-footer .btn {
+		width: auto !important;
+	}
+}
+
+/* Barra de Rolagem Fluida e Elegante */
+::-webkit-scrollbar {
+	width: 8px;
+	height: 8px;
+}
+
+::-webkit-scrollbar-track {
+	background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+	background: #cbd5e1;
+	border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: #94a3b8;
+}
+
+/* Polimento Visual & Transições Fluidas */
+input[type="text"],
+input[type="number"],
+input[type="date"],
+input[type="time"],
+input[type="search"],
+input[type="email"],
+input[type="tel"],
+select,
+textarea {
+	transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+	outline: none;
+	border-color: var(--primary) !important;
+	box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15) !important;
+}
+
+.content-card {
+	transition: box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+.stat-card {
+	transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.stat-card:hover {
+	transform: translateY(-2px);
+	box-shadow: 0 6px 16px -2px rgba(0, 0, 0, 0.06);
+}
+
+.tabela tbody tr {
+	transition: background-color 0.15s ease;
+}
+
+.tabela tbody tr:hover {
+	background-color: rgba(241, 245, 249, 0.65);
+}
+
+.navbar a {
+	transition: all 0.18s ease;
+}
+
+.navbar a:active {
+	transform: scale(0.96);
+}
+
+.brand-wrapper {
+	transition: transform 0.2s ease;
+}
+
+.brand-wrapper:hover {
+	transform: translateY(-1px);
 }
 
 

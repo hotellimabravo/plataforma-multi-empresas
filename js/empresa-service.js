@@ -31,14 +31,18 @@ const EmpresaService = {
     getEmpresas() {
         try {
             const raw = localStorage.getItem(this.STORAGE_KEY);
-            let list = raw ? JSON.parse(raw) : [];
-            if (!Array.isArray(list) || list.length === 0) {
-                list = [EMPRESA_PADRAO];
-                localStorage.setItem(this.STORAGE_KEY, JSON.stringify(list));
+            if (raw !== null) {
+                const list = JSON.parse(raw);
+                if (Array.isArray(list)) return list;
             }
-            return list;
+            // Apenas se nunca foi inicializado antes
+            if (!localStorage.getItem('empresas_initialized_once')) {
+                localStorage.setItem(this.STORAGE_KEY, JSON.stringify([EMPRESA_PADRAO]));
+                return [EMPRESA_PADRAO];
+            }
+            return [];
         } catch (e) {
-            return [EMPRESA_PADRAO];
+            return [];
         }
     },
 
@@ -48,10 +52,19 @@ const EmpresaService = {
 
     getEmpresaAtiva() {
         const user = AuthService.getCurrentUser();
-        const activeId = user?.empresaId || localStorage.getItem('master_active_empresaId') || 'empresa_danilo';
         const list = this.getEmpresas();
+        if (list.length === 0) {
+            return {
+                id: '',
+                nome: 'Nenhum Estabelecimento Cadastrado',
+                tipoNegocio: 'geral',
+                icone: '🏢',
+                status: 'inativo'
+            };
+        }
+        const activeId = user?.empresaId || localStorage.getItem('master_active_empresaId');
         const found = list.find(e => e.id === activeId);
-        return found || list[0] || EMPRESA_PADRAO;
+        return found || list[0];
     },
 
     async init() {
@@ -67,10 +80,20 @@ const EmpresaService = {
                     });
                     if (cloudList.length > 0) {
                         this.saveEmpresasLocais(cloudList);
+                        localStorage.setItem('empresas_initialized_once', 'true');
                     }
                 } else {
-                    // Seed inicial da empresa do Danilo no Firestore
-                    await setDoc(doc(db, 'empresas_lista', EMPRESA_PADRAO.id), EMPRESA_PADRAO);
+                    // Se o Firestore está vazio, verifica se é a primeiríssima vez
+                    const initializedOnce = localStorage.getItem('empresas_initialized_once');
+                    if (!initializedOnce) {
+                        // Seed inicial da empresa do Danilo apenas no primeiro uso absoluto
+                        await setDoc(doc(db, 'empresas_lista', EMPRESA_PADRAO.id), EMPRESA_PADRAO);
+                        this.saveEmpresasLocais([EMPRESA_PADRAO]);
+                        localStorage.setItem('empresas_initialized_once', 'true');
+                    } else {
+                        // O usuário excluiu todas as empresas, mantém a lista vazia
+                        this.saveEmpresasLocais([]);
+                    }
                 }
             }
         } catch (err) {
@@ -132,7 +155,8 @@ const EmpresaService = {
     trocarEmpresaMaster(empresaId) {
         const user = AuthService.getCurrentUser();
         if (!user || !user.isMaster) {
-            alert('Apenas o Administrador Master pode alternar entre empresas.');
+            if (window.UI) window.UI.toast('Apenas o Administrador Master pode alternar entre empresas.', 'error');
+            else alert('Apenas o Administrador Master pode alternar entre empresas.');
             return;
         }
 
@@ -248,29 +272,192 @@ const EmpresaService = {
             throw new Error('Apenas o Administrador Master pode excluir empresas.');
         }
 
-        if (empresaId === 'empresa_danilo') {
-            throw new Error('A empresa padrão Danilo Detailer não pode ser excluída.');
+        const list = this.getEmpresas();
+        const target = list.find(e => e.id === empresaId);
+        if (!target) {
+            throw new Error('Empresa não encontrada para exclusão.');
         }
 
-        // Se for a empresa ativa, volta para a padrão antes
-        if (user.empresaId === empresaId) {
-            this.trocarEmpresaMaster('empresa_danilo');
-            return;
-        }
+        const COLS = [
+            'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual',
+            'config_negocio', 'agendamentos', 'estoque_produtos', 'equipe_membros', 
+            'fidelidade_config', 'vistorias_pedidos', 'usuarios'
+        ];
 
-        // Deletar da nuvem
+        // 1. Limpeza profunda na nuvem (Firestore)
         if (db) {
             try {
-                await deleteDoc(doc(db, 'empresas_lista', empresaId));
+                // a) Deletar todos os subdocumentos de dados da empresa
+                const deletePromises = COLS.map(key => 
+                    deleteDoc(doc(db, 'empresas', empresaId, 'dados', key)).catch(e => console.warn(`Aviso ao apagar dados/${key}:`, e))
+                );
+                await Promise.all(deletePromises);
+
+                // b) Deletar documento principal do tenant
+                await deleteDoc(doc(db, 'empresas', empresaId)).catch(() => {});
+
+                // c) Deletar da lista de empresas cadastradas
+                await deleteDoc(doc(db, 'empresas_lista', empresaId)).catch(() => {});
+
+                // d) Deletar usuários criados para esta empresa na coleção 'users'
+                try {
+                    const usersSnap = await getDocs(collection(db, 'users'));
+                    const userDeletes = [];
+                    usersSnap.forEach(uDoc => {
+                        const uData = uDoc.data();
+                        if (uData && (uData.empresaId === empresaId || uDoc.id === target.adminUsername)) {
+                            userDeletes.push(deleteDoc(doc(db, 'users', uDoc.id)));
+                        }
+                    });
+                    await Promise.all(userDeletes);
+                } catch (userErr) {
+                    console.warn('Aviso ao apagar usuários da empresa:', userErr);
+                }
             } catch (err) {
                 console.warn('Erro ao excluir empresa da nuvem:', err ? (err.message || String(err)) : '');
             }
         }
 
-        // Deletar local
-        let list = this.getEmpresas();
-        list = list.filter(e => e.id !== empresaId);
-        this.saveEmpresasLocais(list);
+        // 2. Limpeza no LocalStorage
+        const remaining = list.filter(e => e.id !== empresaId);
+        this.saveEmpresasLocais(remaining);
+
+        // Se a empresa excluída era a ativa atualmente
+        const activeEmpresaId = localStorage.getItem('master_active_empresaId') || user.empresaId;
+        if (activeEmpresaId === empresaId) {
+            // Limpa as coleções de cache locais
+            COLS.forEach(key => localStorage.removeItem(key));
+
+            if (remaining.length > 0) {
+                user.empresaId = remaining[0].id;
+                localStorage.setItem('master_active_empresaId', remaining[0].id);
+            } else {
+                user.empresaId = '';
+                localStorage.removeItem('master_active_empresaId');
+            }
+            localStorage.setItem('logged_in_user', JSON.stringify(user));
+        }
+
+        return remaining;
+    },
+
+    async exportarDadosEmpresa(empresaId) {
+        const list = this.getEmpresas();
+        const target = list.find(e => e.id === empresaId) || { id: empresaId, nome: empresaId };
+
+        const COLS = [
+            'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual',
+            'config_negocio', 'agendamentos', 'estoque_produtos', 'equipe_membros', 
+            'fidelidade_config', 'vistorias_pedidos', 'usuarios'
+        ];
+
+        const backup = {
+            tipo: 'BACKUP_DADOS_EMPRESA',
+            dataExportacao: new Date().toISOString(),
+            empresa: target,
+            dados: {}
+        };
+
+        if (db) {
+            try {
+                for (const key of COLS) {
+                    try {
+                        const snap = await getDoc(doc(db, 'empresas', empresaId, 'dados', key));
+                        if (snap.exists() && snap.data().data) {
+                            try {
+                                backup.dados[key] = JSON.parse(snap.data().data);
+                            } catch (e) {
+                                backup.dados[key] = snap.data().data;
+                            }
+                        } else {
+                            backup.dados[key] = [];
+                        }
+                    } catch (err) {
+                        backup.dados[key] = [];
+                    }
+                }
+            } catch (err) {
+                console.warn('Erro ao ler do Firestore para backup:', err);
+            }
+        } else {
+            COLS.forEach(key => {
+                const local = localStorage.getItem(key);
+                try {
+                    backup.dados[key] = local ? JSON.parse(local) : [];
+                } catch (e) {
+                    backup.dados[key] = local;
+                }
+            });
+        }
+
+        const safeSlug = (target.nome || empresaId).toLowerCase().replace(/[^a-z0-9]/g, '_');
+        const dataStr = new Date().toISOString().slice(0, 10);
+        this.downloadJSON(backup, `backup_${safeSlug}_${dataStr}.json`);
+    },
+
+    async exportarBancoCompleto() {
+        const list = this.getEmpresas();
+        const COLS = [
+            'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual',
+            'config_negocio', 'agendamentos', 'estoque_produtos', 'equipe_membros', 
+            'fidelidade_config', 'vistorias_pedidos', 'usuarios'
+        ];
+
+        const dumpCompleto = {
+            tipo: 'BACKUP_BANCO_COMPLETO_SISTEMA',
+            dataExportacao: new Date().toISOString(),
+            totalEmpresas: list.length,
+            empresasCadastradas: list,
+            bancoPorEmpresa: {}
+        };
+
+        for (const emp of list) {
+            dumpCompleto.bancoPorEmpresa[emp.id] = {
+                empresa: emp,
+                dados: {}
+            };
+
+            for (const key of COLS) {
+                if (db) {
+                    try {
+                        const snap = await getDoc(doc(db, 'empresas', emp.id, 'dados', key));
+                        if (snap.exists() && snap.data().data) {
+                            try {
+                                dumpCompleto.bancoPorEmpresa[emp.id].dados[key] = JSON.parse(snap.data().data);
+                            } catch (e) {
+                                dumpCompleto.bancoPorEmpresa[emp.id].dados[key] = snap.data().data;
+                            }
+                        } else {
+                            dumpCompleto.bancoPorEmpresa[emp.id].dados[key] = [];
+                        }
+                    } catch (err) {
+                        dumpCompleto.bancoPorEmpresa[emp.id].dados[key] = [];
+                    }
+                } else {
+                    const local = localStorage.getItem(key);
+                    try {
+                        dumpCompleto.bancoPorEmpresa[emp.id].dados[key] = local ? JSON.parse(local) : [];
+                    } catch (e) {
+                        dumpCompleto.bancoPorEmpresa[emp.id].dados[key] = local;
+                    }
+                }
+            }
+        }
+
+        const dataStr = new Date().toISOString().slice(0, 10);
+        this.downloadJSON(dumpCompleto, `backup_completo_banco_dados_${dataStr}.json`);
+    },
+
+    downloadJSON(dados, nomeArquivo) {
+        const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = nomeArquivo;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
     }
 };
 

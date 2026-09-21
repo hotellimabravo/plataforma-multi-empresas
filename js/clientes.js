@@ -62,7 +62,11 @@ document.addEventListener('DOMContentLoaded', () => {
 		const endereco = inputEndereco.value.trim();
 
 		if (!tel1) {
-			alert('Por favor, informe o telefone principal do cliente. Ele é utilizado como código único de identificação.');
+			if (window.UI) {
+				window.UI.toast('Por favor, informe o telefone principal do cliente.', 'warning');
+			} else {
+				alert('Por favor, informe o telefone principal do cliente. Ele é utilizado como código único de identificação.');
+			}
 			inputTelefone1.focus();
 			return;
 		}
@@ -74,14 +78,28 @@ document.addEventListener('DOMContentLoaded', () => {
 			const telLimpoNovo = tel1.replace(/\D/g, '');
 			const clienteExistente = clientes.find(c => (c.tel1 || '').replace(/\D/g, '') === telLimpoNovo);
 			if (clienteExistente) {
-				const confirmar = confirm(`Já existe um cliente cadastrado com este telefone (${clienteExistente.nome}). Deseja cadastrar mesmo assim?`);
-				if (!confirmar) {
-					inputTelefone1.focus();
+				if (window.UI) {
+					window.UI.confirm({
+						title: 'Telefone Já Cadastrado',
+						message: `Já existe um cliente cadastrado com este telefone: <strong>${clienteExistente.nome}</strong>. Deseja cadastrar mesmo assim?`,
+						confirmText: 'Cadastrar Mesmo Assim',
+						cancelText: 'Voltar'
+					}).then((prosseguir) => {
+						if (!prosseguir) {
+							inputTelefone1.focus();
+							return;
+						}
+						salvarClienteFinal(clientes, nome, tel1, wpp1, tel2, wpp2, endereco);
+					});
 					return;
 				}
 			}
 		}
 
+		salvarClienteFinal(clientes, nome, tel1, wpp1, tel2, wpp2, endereco);
+	});
+
+	function salvarClienteFinal(clientes, nome, tel1, wpp1, tel2, wpp2, endereco) {
 		if (editIndex !== null) {
 			// Editando cliente existente (preserva outros campos se existirem)
 			const clienteAtual = clientes[editIndex] || {};
@@ -95,15 +113,17 @@ document.addEventListener('DOMContentLoaded', () => {
 				endereco
 			};
 			editIndex = null;
+			if (window.UI) window.UI.toast('Cliente atualizado com sucesso!', 'success');
 		} else {
 			// Adicionando novo cliente
 			clientes.push({ nome, tel1, wpp1, tel2, wpp2, endereco });
+			if (window.UI) window.UI.toast('Cliente cadastrado com sucesso!', 'success');
 		}
 
 		localStorage.setItem('clientes', JSON.stringify(clientes));
 		atualizarTabela();
 		resetFormState();
-	});
+	}
 
 	function atualizarTabela() {
 		const clientes = JSON.parse(localStorage.getItem('clientes')) || [];
@@ -184,18 +204,32 @@ document.addEventListener('DOMContentLoaded', () => {
 		// Adiciona evento de exclusão
 		const deleteButtons = document.querySelectorAll('.delete__btn');
 		deleteButtons.forEach((button) => {
-			button.addEventListener('click', (e) => {
+			button.addEventListener('click', async (e) => {
 				const index = e.currentTarget.getAttribute('data-index');
 				const clientes = JSON.parse(localStorage.getItem('clientes')) || [];
 				const cliente = clientes[index];
 				if (!cliente) return;
 
-				if (confirm(`Deseja realmente remover o cliente "${cliente.nome}" (${cliente.tel1 || 'Sem telefone'})?`)) {
+				let confirmado = false;
+				if (window.UI) {
+					confirmado = await window.UI.confirm({
+						title: 'Excluir Cliente',
+						message: `Deseja realmente remover o cliente <strong>"${cliente.nome}"</strong> (${cliente.tel1 || 'Sem telefone'})?`,
+						confirmText: 'Sim, Excluir',
+						danger: true,
+						icon: '🗑️'
+					});
+				} else {
+					confirmado = confirm(`Deseja realmente remover o cliente "${cliente.nome}" (${cliente.tel1 || 'Sem telefone'})?`);
+				}
+
+				if (confirmado) {
 					clientes.splice(index, 1);
 					localStorage.setItem('clientes', JSON.stringify(clientes));
 					if (editIndex === index) {
 						resetFormState();
 					}
+					if (window.UI) window.UI.toast('Cliente excluído com sucesso.', 'info');
 					atualizarTabela();
 				}
 			});

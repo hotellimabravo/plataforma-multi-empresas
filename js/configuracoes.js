@@ -18,8 +18,13 @@ document.addEventListener('DOMContentLoaded', () => {
 		tabMaster.style.display = 'flex';
 	}
 
-	if (window.location.hash === '#empresas') {
-		alternarAbaConfig('empresas');
+	// Suporte a abertura direta de abas via query string (?aba=equipe) ou hash (#equipe)
+	const urlParams = new URLSearchParams(window.location.search);
+	const abaUrl = urlParams.get('aba');
+	const hashUrl = window.location.hash ? window.location.hash.replace('#', '') : null;
+	const abaDestino = abaUrl || hashUrl;
+	if (abaDestino && ['negocio', 'database', 'usuarios', 'equipe', 'empresas'].includes(abaDestino)) {
+		alternarAbaConfig(abaDestino);
 	}
 });
 
@@ -55,7 +60,9 @@ function alternarAbaConfig(aba) {
 	} else if (aba === 'equipe') {
 		if (tabEquipe) tabEquipe.classList.add('active');
 		if (conteudoEquipe) conteudoEquipe.style.display = 'block';
-		if (typeof filtrarComissoes === 'function') {
+		if (typeof inicializarEquipeConfig === 'function') {
+			inicializarEquipeConfig();
+		} else if (typeof filtrarComissoes === 'function') {
 			filtrarComissoes();
 		}
 	} else if (aba === 'empresas') {
@@ -242,7 +249,8 @@ function salvarConfiguracaoNegocio(e) {
 
 	const nomeEstabelecimento = elNome ? elNome.value.trim() : '';
 	if (!nomeEstabelecimento) {
-		alert('Por favor, preencha o Nome do Estabelecimento.');
+		if (window.UI) window.UI.toast('Por favor, preencha o Nome do Estabelecimento.', 'warning');
+		else alert('Por favor, preencha o Nome do Estabelecimento.');
 		if (elNome) elNome.focus();
 		return;
 	}
@@ -360,7 +368,8 @@ function tratarArquivoSelecionado(event) {
 
 function processarArquivo(file) {
 	if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-		alert('Por favor, selecione um arquivo de planilha no formato Excel (.xlsx ou .xls).');
+		if (window.UI) window.UI.toast('Por favor, selecione um arquivo no formato Excel (.xlsx ou .xls).', 'warning');
+		else alert('Por favor, selecione um arquivo de planilha no formato Excel (.xlsx ou .xls).');
 		return;
 	}
 
@@ -385,7 +394,8 @@ function processarArquivo(file) {
 
 async function executarImportacao() {
 	if (!arquivoExcelSelecionado) {
-		alert('Selecione primeiro uma planilha Excel para carregar.');
+		if (window.UI) window.UI.toast('Selecione primeiro uma planilha Excel para carregar.', 'warning');
+		else alert('Selecione primeiro uma planilha Excel para carregar.');
 		return;
 	}
 
@@ -724,6 +734,18 @@ function renderizarAbaEmpresasMaster() {
 
 	grid.innerHTML = '';
 
+	if (empresas.length === 0) {
+		grid.innerHTML = `
+			<div style="grid-column: 1 / -1; padding: 40px 20px; text-align: center; background: var(--bg-surface); border: 2px dashed var(--border-color); border-radius: 8px;">
+				<div style="font-size: 2.5rem; margin-bottom: 10px;">🏢</div>
+				<h3 style="font-size: 1.1rem; font-weight: 700; color: var(--text-main); margin-bottom: 6px;">Nenhuma empresa cadastrada no momento</h3>
+				<p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;">Todas as empresas foram excluídas ou ainda não foram criadas.</p>
+				<button type="button" class="btn btn-primary" onclick="abrirModalNovaEmpresa()">➕ Cadastrar Primeira Empresa</button>
+			</div>
+		`;
+		return;
+	}
+
 	empresas.forEach(emp => {
 		const isAtiva = emp.id === ativa.id;
 		const card = document.createElement('div');
@@ -732,12 +754,12 @@ function renderizarAbaEmpresasMaster() {
 		const badgeNicho = `<span class="badge" style="background: #f1f5f9; color: #334155; font-size: 0.75rem; text-transform: uppercase;">${emp.tipoNegocio}</span>`;
 		
 		const statusBtn = isAtiva
-			? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700; padding: 5px 10px;">⭐ Empresa em Visualização</span>`
+			? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700; padding: 5px 10px;">⭐ Empresa Ativa</span>`
 			: `<button type="button" class="btn btn-sm btn-primary" onclick="alternarEmpresaDireto('${emp.id}')">⚡ Alternar Painel</button>`;
 
-		const deleteBtn = emp.id === 'empresa_danilo' 
-			? '' 
-			: `<button type="button" class="btn btn-sm" style="background: transparent; border: 1px solid #ef4444; color: #ef4444; padding: 4px 8px;" title="Excluir Estabelecimento" onclick="excluirEmpresaMaster('${emp.id}')">🗑️</button>`;
+		const downloadBtn = `<button type="button" class="btn btn-sm" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; padding: 4px 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Baixar todos os dados desta empresa em formato JSON" onclick="baixarBackupEmpresaMaster('${emp.id}')">📥 Baixar Dados</button>`;
+
+		const deleteBtn = `<button type="button" class="btn btn-sm" style="background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; padding: 4px 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Excluir Empresa e Apagar Todo o Banco de Dados Dela" onclick="excluirEmpresaMaster('${emp.id}')">🗑️ Excluir</button>`;
 
 		card.innerHTML = `
 			<div class="tenant-card-header">
@@ -754,11 +776,12 @@ function renderizarAbaEmpresasMaster() {
 				${emp.telefone ? `<div><strong>Contato:</strong> ${emp.telefone}</div>` : ''}
 			</div>
 
-			<div class="tenant-card-footer">
+			<div class="tenant-card-footer" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
 				<div style="display: flex; gap: 6px; align-items: center;">
 					${statusBtn}
 				</div>
-				<div>
+				<div style="display: flex; gap: 6px; align-items: center;">
+					${downloadBtn}
 					${deleteBtn}
 				</div>
 			</div>
@@ -832,12 +855,26 @@ async function salvarNovaEmpresaMaster(e) {
 			window.EmpresaService.renderMasterTenantBar();
 		}
 
-		const querAlternar = confirm(`Estabelecimento "${nova.nome}" cadastrado com sucesso na nuvem!\n\nDeseja alternar agora mesmo o painel para testar esta nova empresa?`);
-		if (querAlternar) {
-			window.EmpresaService.trocarEmpresaMaster(nova.id);
+		if (window.UI) {
+			const querAlternar = await window.UI.confirm({
+				title: 'Empresa Cadastrada',
+				message: `O estabelecimento <strong>"${nova.nome}"</strong> foi cadastrado com sucesso!<br><br>Deseja alternar agora mesmo o painel para gerenciar esta nova empresa?`,
+				confirmText: 'Sim, Alternar Agora',
+				cancelText: 'Permanecer Aqui',
+				icon: '🏢'
+			});
+			if (querAlternar) {
+				window.EmpresaService.trocarEmpresaMaster(nova.id);
+			}
+		} else {
+			const querAlternar = confirm(`Estabelecimento "${nova.nome}" cadastrado com sucesso na nuvem!\n\nDeseja alternar agora mesmo o painel para testar esta nova empresa?`);
+			if (querAlternar) {
+				window.EmpresaService.trocarEmpresaMaster(nova.id);
+			}
 		}
 	} catch (err) {
-		alert('Erro ao criar empresa: ' + (err.message || err));
+		if (window.UI) window.UI.alert('Erro ao criar empresa: ' + (err.message || err), 'Erro');
+		else alert('Erro ao criar empresa: ' + (err.message || err));
 	} finally {
 		if (btn) {
 			btn.disabled = false;
@@ -852,26 +889,474 @@ function alternarEmpresaDireto(id) {
 	}
 }
 
-async function excluirEmpresaMaster(id) {
+function excluirEmpresaMaster(id) {
 	if (!window.EmpresaService) return;
-	if (confirm('Tem certeza que deseja excluir este estabelecimento do sistema?')) {
-		try {
-			await window.EmpresaService.excluirEmpresa(id);
-			renderizarAbaEmpresasMaster();
-			if (window.EmpresaService.renderMasterTenantBar) {
-				window.EmpresaService.renderMasterTenantBar();
-			}
-		} catch (err) {
-			alert(err.message || err);
+	const empresas = window.EmpresaService.getEmpresas();
+	const emp = empresas.find(e => e.id === id) || { id: id, nome: id };
+
+	const modal = document.getElementById('modalExcluirEmpresa');
+	const nomeEl = document.getElementById('modalExcluirEmpresaNome');
+	const instrucaoEl = document.getElementById('modalExcluirEmpresaNomeInstrucao');
+	const inputId = document.getElementById('modalExcluirEmpresaId');
+	const inputConfirmacao = document.getElementById('modalExcluirConfirmacaoInput');
+	const erroEl = document.getElementById('modalExcluirMensagemErro');
+	const btn = document.getElementById('btnConfirmarExclusaoEmpresa');
+
+	if (!modal) return;
+
+	if (nomeEl) nomeEl.textContent = emp.nome;
+	if (instrucaoEl) instrucaoEl.textContent = `"${emp.nome}"`;
+	if (inputId) inputId.value = emp.id;
+	if (inputConfirmacao) inputConfirmacao.value = '';
+	if (erroEl) erroEl.style.display = 'none';
+
+	if (btn) {
+		btn.disabled = true;
+		btn.style.opacity = '0.45';
+		btn.style.cursor = 'not-allowed';
+		btn.textContent = '🗑️ Excluir Definitivamente do Banco';
+	}
+
+	modal.style.display = 'flex';
+	if (inputConfirmacao) {
+		setTimeout(() => inputConfirmacao.focus(), 100);
+	}
+}
+
+function fecharModalExcluirEmpresa() {
+	const modal = document.getElementById('modalExcluirEmpresa');
+	if (modal) modal.style.display = 'none';
+}
+
+function validarConfirmacaoExclusao() {
+	const inputId = document.getElementById('modalExcluirEmpresaId');
+	const inputConfirmacao = document.getElementById('modalExcluirConfirmacaoInput');
+	const erroEl = document.getElementById('modalExcluirMensagemErro');
+	const btn = document.getElementById('btnConfirmarExclusaoEmpresa');
+
+	if (!inputId || !inputConfirmacao || !btn) return;
+
+	const id = inputId.value;
+	const empresas = window.EmpresaService ? window.EmpresaService.getEmpresas() : [];
+	const emp = empresas.find(e => e.id === id) || { id: id, nome: id };
+
+	const digitado = inputConfirmacao.value.trim().toLowerCase();
+	const esperado = emp.nome.trim().toLowerCase();
+
+	if (digitado === esperado) {
+		btn.disabled = false;
+		btn.style.opacity = '1';
+		btn.style.cursor = 'pointer';
+		if (erroEl) erroEl.style.display = 'none';
+	} else {
+		btn.disabled = true;
+		btn.style.opacity = '0.45';
+		btn.style.cursor = 'not-allowed';
+		if (digitado.length >= 3 && !esperado.startsWith(digitado)) {
+			if (erroEl) erroEl.style.display = 'block';
+		} else {
+			if (erroEl) erroEl.style.display = 'none';
 		}
+	}
+}
+
+async function executarExclusaoEmpresaConfirmada() {
+	const inputId = document.getElementById('modalExcluirEmpresaId');
+	const btn = document.getElementById('btnConfirmarExclusaoEmpresa');
+	if (!inputId || !btn) return;
+
+	const id = inputId.value;
+	if (!id || !window.EmpresaService) return;
+
+	try {
+		btn.disabled = true;
+		btn.style.opacity = '0.7';
+		btn.style.cursor = 'wait';
+		btn.textContent = '⏳ Excluindo e apagando banco...';
+
+		await window.EmpresaService.excluirEmpresa(id);
+		fecharModalExcluirEmpresa();
+
+		renderizarAbaEmpresasMaster();
+		if (window.EmpresaService.renderMasterTenantBar) {
+			window.EmpresaService.renderMasterTenantBar();
+		}
+		window.location.reload();
+	} catch (err) {
+		if (window.UI) window.UI.alert('Erro ao excluir empresa: ' + (err.message || err), 'Erro');
+		else alert('Erro ao excluir empresa: ' + (err.message || err));
+		btn.disabled = false;
+		btn.style.opacity = '1';
+		btn.style.cursor = 'pointer';
+		btn.textContent = '🗑️ Excluir Definitivamente do Banco';
+	}
+}
+
+async function baixarBackupEmpresaMaster(id) {
+	if (!window.EmpresaService) return;
+	try {
+		await window.EmpresaService.exportarDadosEmpresa(id);
+		if (window.UI) window.UI.toast('Backup da empresa gerado com sucesso!', 'success');
+	} catch (err) {
+		if (window.UI) window.UI.alert('Erro ao baixar dados da empresa: ' + (err.message || err), 'Erro no Backup');
+		else alert('Erro ao baixar dados da empresa: ' + (err.message || err));
+	}
+}
+
+async function baixarBackupCompletoMaster() {
+	if (!window.EmpresaService) return;
+	try {
+		await window.EmpresaService.exportarBancoCompleto();
+		if (window.UI) window.UI.toast('Backup completo do banco baixado com sucesso!', 'success');
+	} catch (err) {
+		if (window.UI) window.UI.alert('Erro ao baixar banco de dados completo: ' + (err.message || err), 'Erro no Backup');
+		else alert('Erro ao baixar banco de dados completo: ' + (err.message || err));
 	}
 }
 
 window.renderizarAbaEmpresasMaster = renderizarAbaEmpresasMaster;
 window.abrirModalNovaEmpresa = abrirModalNovaEmpresa;
 window.fecharModalNovaEmpresa = fecharModalNovaEmpresa;
+window.fecharModalExcluirEmpresa = fecharModalExcluirEmpresa;
+window.validarConfirmacaoExclusao = validarConfirmacaoExclusao;
+window.executarExclusaoEmpresaConfirmada = executarExclusaoEmpresaConfirmada;
 window.selecionarSegmentoNovo = selecionarSegmentoNovo;
 window.salvarNovaEmpresaMaster = salvarNovaEmpresaMaster;
 window.alternarEmpresaDireto = alternarEmpresaDireto;
 window.excluirEmpresaMaster = excluirEmpresaMaster;
+window.baixarBackupEmpresaMaster = baixarBackupEmpresaMaster;
+window.baixarBackupCompletoMaster = baixarBackupCompletoMaster;
+
+// ==========================================================================
+// LÓGICA DA ABA EQUIPE & COMISSÕES
+// ==========================================================================
+let membroEmEdicaoId = null;
+let equipeConfigInicializada = false;
+
+function inicializarEquipeConfig() {
+	configurarEventosEquipeConfig();
+	renderizarTabelaMembrosConfig();
+	filtrarComissoes();
+}
+
+function configurarEventosEquipeConfig() {
+	if (equipeConfigInicializada) return;
+	equipeConfigInicializada = true;
+
+	const formMembro = document.getElementById('formNovoMembro');
+	const selectTipo = document.getElementById('membroTipoComissao');
+	const btnCancelar = document.getElementById('btnCancelarEdicaoMembro');
+	const inputInicio = document.getElementById('filtroComissaoInicio');
+	const inputFim = document.getElementById('filtroComissaoFim');
+
+	// Define padrão do mês corrente nos filtros caso estejam vazios
+	if (inputInicio && !inputInicio.value) {
+		const hoje = new Date();
+		const primeiroDia = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+		inputInicio.value = primeiroDia.toISOString().split('T')[0];
+	}
+	if (inputFim && !inputFim.value) {
+		inputFim.value = new Date().toISOString().split('T')[0];
+	}
+
+	if (selectTipo) {
+		selectTipo.addEventListener('change', (e) => {
+			atualizarLabelsTipoComissaoConfig(e.target.value);
+		});
+	}
+
+	if (btnCancelar) {
+		btnCancelar.addEventListener('click', () => {
+			cancelarEdicaoMembroConfig();
+		});
+	}
+
+	if (formMembro) {
+		formMembro.addEventListener('submit', (e) => {
+			e.preventDefault();
+			salvarMembroEquipeConfig();
+		});
+	}
+}
+
+function atualizarLabelsTipoComissaoConfig(tipo) {
+	const labelValor = document.getElementById('labelValorComissao');
+	const inputValor = document.getElementById('membroValorComissao');
+	if (!labelValor || !inputValor) return;
+
+	if (tipo === 'percentual') {
+		labelValor.textContent = 'Comissão por Serviço (%) *';
+		inputValor.placeholder = 'Ex: 30';
+		inputValor.step = '0.5';
+	} else {
+		labelValor.textContent = 'Comissão Fixa por Serviço (R$) *';
+		inputValor.placeholder = 'Ex: 15.00';
+		inputValor.step = '0.50';
+	}
+}
+
+function salvarMembroEquipeConfig() {
+	const nomeInput = document.getElementById('membroNome');
+	const cargoInput = document.getElementById('membroCargo');
+	const tipoSelect = document.getElementById('membroTipoComissao');
+	const valorInput = document.getElementById('membroValorComissao');
+
+	if (!nomeInput) return;
+	const nome = nomeInput.value.trim();
+	if (!nome) {
+		if (window.UI) window.UI.toast('Informe o nome do profissional.', 'warning');
+		return;
+	}
+
+	const cargo = cargoInput ? cargoInput.value.trim() : '';
+	const tipoComissao = tipoSelect ? tipoSelect.value : 'percentual';
+	const valorComissao = valorInput ? parseFloat(valorInput.value || 0) : 0;
+
+	if (membroEmEdicaoId) {
+		if (window.EquipeService) {
+			window.EquipeService.atualizarMembro(membroEmEdicaoId, {
+				nome,
+				cargo,
+				tipoComissao,
+				valorComissao
+			});
+		}
+		if (window.UI) window.UI.toast('Profissional atualizado com sucesso!', 'success');
+	} else {
+		if (window.EquipeService) {
+			window.EquipeService.adicionarMembro({
+				nome,
+				cargo,
+				tipoComissao,
+				valorComissao
+			});
+		}
+		if (window.UI) window.UI.toast('Profissional cadastrado na equipe!', 'success');
+	}
+
+	cancelarEdicaoMembroConfig();
+	renderizarTabelaMembrosConfig();
+	filtrarComissoes();
+}
+
+function editarMembroEquipeConfig(id) {
+	if (!window.EquipeService) return;
+	const membros = window.EquipeService.obterMembros();
+	const membro = membros.find(m => m.id === id);
+	if (!membro) return;
+
+	membroEmEdicaoId = id;
+
+	const nomeInput = document.getElementById('membroNome');
+	const cargoInput = document.getElementById('membroCargo');
+	const tipoSelect = document.getElementById('membroTipoComissao');
+	const valorInput = document.getElementById('membroValorComissao');
+	const tituloForm = document.getElementById('formMembroTitulo');
+	const btnSalvar = document.getElementById('btnSalvarMembro');
+	const btnCancelar = document.getElementById('btnCancelarEdicaoMembro');
+
+	if (nomeInput) nomeInput.value = membro.nome || '';
+	if (cargoInput) cargoInput.value = membro.cargo || '';
+	if (tipoSelect) {
+		tipoSelect.value = membro.tipoComissao || 'percentual';
+		atualizarLabelsTipoComissaoConfig(tipoSelect.value);
+	}
+	if (valorInput) valorInput.value = membro.valorComissao || 0;
+
+	if (tituloForm) tituloForm.textContent = `✏️ Editando: ${membro.nome}`;
+	if (btnSalvar) btnSalvar.textContent = '💾 Salvar Alterações';
+	if (btnCancelar) btnCancelar.style.display = 'inline-block';
+
+	const form = document.getElementById('formNovoMembro');
+	if (form) form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelarEdicaoMembroConfig() {
+	membroEmEdicaoId = null;
+	const form = document.getElementById('formNovoMembro');
+	if (form) form.reset();
+
+	const tituloForm = document.getElementById('formMembroTitulo');
+	const btnSalvar = document.getElementById('btnSalvarMembro');
+	const btnCancelar = document.getElementById('btnCancelarEdicaoMembro');
+
+	if (tituloForm) tituloForm.textContent = '➕ Cadastrar Profissional';
+	if (btnSalvar) btnSalvar.textContent = '💾 Salvar Profissional';
+	if (btnCancelar) btnCancelar.style.display = 'none';
+
+	atualizarLabelsTipoComissaoConfig('percentual');
+}
+
+async function removerMembroEquipeConfig(id) {
+	if (!window.EquipeService) return;
+	const membros = window.EquipeService.obterMembros();
+	const membro = membros.find(m => m.id === id);
+	const nome = membro ? membro.nome : 'o profissional';
+
+	if (window.UI) {
+		const confirmado = await window.UI.confirm({
+			title: 'Excluir Integrante',
+			message: `Deseja realmente remover <strong>"${nome}"</strong> da equipe?`,
+			confirmText: 'Sim, Excluir',
+			danger: true,
+			icon: '🗑️'
+		});
+		if (!confirmado) return;
+	}
+
+	window.EquipeService.removerMembro(id);
+	if (window.UI) window.UI.toast('Profissional removido da equipe.', 'info');
+
+	if (membroEmEdicaoId === id) {
+		cancelarEdicaoMembroConfig();
+	}
+	renderizarTabelaMembrosConfig();
+	filtrarComissoes();
+}
+
+function renderizarTabelaMembrosConfig() {
+	const corpo = document.getElementById('corpoTabelaMembros');
+	if (!corpo) return;
+
+	if (!window.EquipeService) {
+		corpo.innerHTML = '<tr><td colspan="5" class="empty-table-message">Serviço de equipe indisponível.</td></tr>';
+		return;
+	}
+
+	const membros = window.EquipeService.obterMembros();
+	const statTotalEquipe = document.getElementById('statTotalEquipe');
+	if (statTotalEquipe) {
+		statTotalEquipe.textContent = membros.filter(m => m.ativo !== false).length;
+	}
+
+	corpo.innerHTML = '';
+	if (membros.length === 0) {
+		corpo.innerHTML = '<tr><td colspan="5" class="empty-table-message">Nenhum profissional cadastrado na equipe.</td></tr>';
+		return;
+	}
+
+	membros.forEach(m => {
+		const regraFmt = m.tipoComissao === 'percentual' 
+			? `${m.valorComissao || 0}% sobre o serviço` 
+			: `R$ ${parseFloat(m.valorComissao || 0).toFixed(2)} fixo por carro`;
+
+		const tr = document.createElement('tr');
+		tr.innerHTML = `
+			<td>
+				<strong>${m.nome}</strong>
+			</td>
+			<td>
+				<span class="badge" style="background: #f1f5f9; color: #334155; font-size: 0.8rem;">
+					${m.cargo || 'Lavador / Operador'}
+				</span>
+			</td>
+			<td>
+				<span style="font-weight: 600; color: #1e40af; font-size: 0.85rem;">${regraFmt}</span>
+			</td>
+			<td>
+				<span class="badge" style="background: #dcfce7; color: #15803d; font-size: 0.8rem;">Ativo</span>
+			</td>
+			<td style="text-align: center; white-space: nowrap;">
+				<div style="display: inline-flex; gap: 6px;">
+					<button type="button" class="btn btn-secondary btn-sm" title="Editar" onclick="editarMembroEquipeConfig('${m.id}')" style="padding: 4px 8px; font-size: 0.8rem;">
+						✏️ Editar
+					</button>
+					<button type="button" class="btn btn-sm" title="Excluir" onclick="removerMembroEquipeConfig('${m.id}')" style="background: #fee2e2; border: 1px solid #fecaca; color: #b91c1c; padding: 4px 8px; font-size: 0.8rem;">
+						🗑️
+					</button>
+				</div>
+			</td>
+		`;
+		corpo.appendChild(tr);
+	});
+}
+
+function filtrarComissoes() {
+	const inicioInput = document.getElementById('filtroComissaoInicio');
+	const fimInput = document.getElementById('filtroComissaoFim');
+	const corpo = document.getElementById('corpoTabelaComissoes');
+	if (!corpo) return;
+
+	if (!window.EquipeService) {
+		corpo.innerHTML = '<tr><td colspan="5" class="empty-table-message">Serviço de equipe indisponível.</td></tr>';
+		return;
+	}
+
+	const inicio = inicioInput ? inicioInput.value : '';
+	const fim = fimInput ? fimInput.value : '';
+
+	const relatorio = window.EquipeService.calcularComissoesPorPeriodo(inicio, fim);
+
+	let totalGeralComissoes = 0;
+	let totalGeralServicos = 0;
+
+	relatorio.forEach(r => {
+		totalGeralComissoes += r.totalComissao || 0;
+		totalGeralServicos += r.qtdServicos || 0;
+	});
+
+	const statComissoes = document.getElementById('statTotalComissoes');
+	if (statComissoes) statComissoes.textContent = `R$ ${totalGeralComissoes.toFixed(2)}`;
+
+	const statServicos = document.getElementById('statTotalServicosExecutados');
+	if (statServicos) statServicos.textContent = totalGeralServicos;
+
+	corpo.innerHTML = '';
+	if (relatorio.length === 0) {
+		corpo.innerHTML = '<tr><td colspan="5" class="empty-table-message">Nenhum dado de produtividade encontrado para o período.</td></tr>';
+		return;
+	}
+
+	relatorio.forEach(r => {
+		const m = r.membro;
+		const regraFmt = m.tipoComissao === 'percentual'
+			? `${m.valorComissao || 0}%`
+			: `R$ ${parseFloat(m.valorComissao || 0).toFixed(2)}`;
+
+		const tr = document.createElement('tr');
+		tr.innerHTML = `
+			<td>
+				<strong>${m.nome}</strong>
+				<div style="font-size: 0.75rem; color: var(--text-muted);">Regra: ${regraFmt}</div>
+			</td>
+			<td>
+				<span class="badge" style="background: #f1f5f9; color: #334155; font-size: 0.8rem;">
+					${m.cargo || 'Equipe'}
+				</span>
+			</td>
+			<td>
+				<span class="badge" style="background: #eff6ff; color: #1e40af; font-weight: 700; font-size: 0.85rem;">
+					${r.qtdServicos} serviços
+				</span>
+			</td>
+			<td style="font-weight: 600; color: var(--text-main);">
+				R$ ${(r.totalFaturado || 0).toFixed(2)}
+			</td>
+			<td>
+				<span class="badge-price" style="background: #dcfce7; color: #15803d; font-weight: 700; font-size: 0.9rem;">
+					R$ ${(r.totalComissao || 0).toFixed(2)}
+				</span>
+			</td>
+		`;
+		corpo.appendChild(tr);
+	});
+}
+
+function limparFiltroComissoes() {
+	const inicioInput = document.getElementById('filtroComissaoInicio');
+	const fimInput = document.getElementById('filtroComissaoFim');
+	if (inicioInput) inicioInput.value = '';
+	if (fimInput) fimInput.value = '';
+	filtrarComissoes();
+	if (window.UI) window.UI.toast('Mostrando todo o período acumulado.', 'info');
+}
+
+// Expõe globalmente para os botões HTML
+window.inicializarEquipeConfig = inicializarEquipeConfig;
+window.editarMembroEquipeConfig = editarMembroEquipeConfig;
+window.removerMembroEquipeConfig = removerMembroEquipeConfig;
+window.cancelarEdicaoMembroConfig = cancelarEdicaoMembroConfig;
+window.filtrarComissoes = filtrarComissoes;
+window.limparFiltroComissoes = limparFiltroComissoes;
+
 

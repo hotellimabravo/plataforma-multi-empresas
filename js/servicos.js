@@ -94,17 +94,31 @@ function atualizarServicos() {
 
 	// Ações de remover
 	document.querySelectorAll('.delete-servico-btn').forEach((btn) => {
-		btn.addEventListener('click', (e) => {
+		btn.addEventListener('click', async (e) => {
 			const index = e.currentTarget.getAttribute('data-index');
 			const s = servicos[index];
 			if (!s) return;
 
-			if (confirm(`Deseja realmente remover o serviço "${s.nome}"?`)) {
+			let confirmado = false;
+			if (window.UI) {
+				confirmado = await window.UI.confirm({
+					title: 'Excluir Serviço',
+					message: `Deseja realmente remover o serviço <strong>"${s.nome}"</strong>?`,
+					confirmText: 'Sim, Excluir',
+					danger: true,
+					icon: '🗑️'
+				});
+			} else {
+				confirmado = confirm(`Deseja realmente remover o serviço "${s.nome}"?`);
+			}
+
+			if (confirmado) {
 				servicos.splice(index, 1);
 				localStorage.setItem('servicos', JSON.stringify(servicos));
 				if (editIndex === index) {
 					resetForm();
 				}
+				if (window.UI) window.UI.toast('Serviço excluído com sucesso.', 'info');
 				atualizarServicos();
 			}
 		});
@@ -119,8 +133,10 @@ servicoForm.addEventListener('submit', (e) => {
 
 	if (editIndex !== null) {
 		servicos[editIndex] = { nome, preco, descricao };
+		if (window.UI) window.UI.toast('Serviço atualizado com sucesso!', 'success');
 	} else {
 		servicos.push({ nome, preco, descricao });
+		if (window.UI) window.UI.toast('Serviço cadastrado com sucesso!', 'success');
 	}
 
 	localStorage.setItem('servicos', JSON.stringify(servicos));

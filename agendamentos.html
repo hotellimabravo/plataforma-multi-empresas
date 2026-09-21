@@ -201,7 +201,7 @@
 					</div>
 
 					<div class="form-actions">
-						<button type="submit" class="btn">📅 Confirmar & Agendar Horário</button>
+						<button type="submit" id="btnConfirmarAgendamento" class="btn">📅 Confirmar & Agendar Horário</button>
 					</div>
 				</form>
 			</div>
@@ -213,7 +213,7 @@
 					<div style="display:flex; align-items:center; gap:8px;">
 						<label for="filtroDataAgendamento" style="font-size:0.85rem; color:var(--text-muted); margin:0;">Filtrar por data:</label>
 						<input type="date" id="filtroDataAgendamento" style="padding:4px 8px; font-size:0.85rem;" />
-						<button type="button" class="btn btn-secondary btn-sm" onclick="document.getElementById('filtroDataAgendamento').value=''; renderizarListaAgendamentos();">Ver Todos</button>
+						<button type="button" id="btnVerTodosAgendamentos" class="btn btn-secondary btn-sm" onclick="document.getElementById('filtroDataAgendamento').value=''; renderizarListaAgendamentos();">Ver Todos</button>
 					</div>
 				</div>
 

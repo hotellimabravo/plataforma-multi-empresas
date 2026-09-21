@@ -1,4 +1,5 @@
 import './error-guard.js';
+import './ui-feedback.js';
 import { initFirebase, db, auth, signInWithEmailAndPassword, signOut as fbSignOut, doc, getDoc, setDoc } from './firebase-init.js';
 import './firebase-sync.js';
 import './empresa-service.js';
@@ -68,7 +69,15 @@ const AuthService = {
         
         // 1. MASTER LOGIN (Local Hash)
         if (usernameNormalized === this.MASTER_USER.toLowerCase() && hash === this.MASTER_HASH) {
-            const activeEmpresa = localStorage.getItem('master_active_empresaId') || 'empresa_danilo';
+            let activeEmpresa = localStorage.getItem('master_active_empresaId');
+            if (!activeEmpresa) {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('empresas_cadastradas') || '[]');
+                    activeEmpresa = saved.length > 0 ? saved[0].id : '';
+                } catch (e) {
+                    activeEmpresa = '';
+                }
+            }
             const masterData = { 
                 id: 'master', 
                 nome: 'Administrador Master', 
@@ -112,7 +121,15 @@ const AuthService = {
         
         if (user) {
             const currentUser = this.getCurrentUser();
-            const currentEmpresaId = (currentUser && currentUser.empresaId) ? currentUser.empresaId : 'empresa_danilo';
+            let currentEmpresaId = (currentUser && currentUser.empresaId) ? currentUser.empresaId : '';
+            if (!currentEmpresaId) {
+                try {
+                    const saved = JSON.parse(localStorage.getItem('empresas_cadastradas') || '[]');
+                    currentEmpresaId = saved.length > 0 ? saved[0].id : '';
+                } catch (e) {
+                    currentEmpresaId = '';
+                }
+            }
             const { passwordHash, ...userData } = user;
             userData.empresaId = user.empresaId || currentEmpresaId;
             localStorage.setItem('logged_in_user', JSON.stringify(userData));
@@ -183,7 +200,8 @@ const AuthService = {
         if (path.includes('configuracoes.html')) currentModule = 'configuracoes';
 
         if (currentModule && !this.hasPermission(currentModule)) {
-            alert('Seu usuário não tem permissão para acessar esta área.');
+            if (window.UI) window.UI.toast('Seu usuário não tem permissão para acessar esta área.', 'error');
+            else alert('Seu usuário não tem permissão para acessar esta área.');
             window.location.href = 'index.html';
         }
 

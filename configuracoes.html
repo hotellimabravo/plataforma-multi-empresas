@@ -654,7 +654,7 @@
 								</h2>
 							</div>
 							<p style="font-size: 0.9rem; color: var(--text-muted); line-height: 1.5; margin-bottom: 20px;">
-								Cadastre lavadores, defina comissões e apure os valores devidos por período.
+								Cadastre operadores e lavadores, defina regras de comissão (porcentagem ou fixa) e acompanhe a produtividade e apuração de repasses por período.
 							</p>
 
 							<!-- Métricas Rápidas -->
@@ -662,72 +662,109 @@
 								<div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; display: flex; align-items: center; gap: 12px;">
 									<div style="width: 36px; height: 36px; border-radius: 8px; background: #eff6ff; color: #3b82f6; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">👥</div>
 									<div>
-										<span style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Ativos</span>
+										<span style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Profissionais</span>
 										<span id="statTotalEquipe" style="display: block; font-size: 1.25rem; font-weight: 700; color: var(--text-main);">0</span>
 									</div>
 								</div>
 								<div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; display: flex; align-items: center; gap: 12px;">
-									<div style="width: 36px; height: 36px; border-radius: 8px; background: #dcfce7; color: #22c55e; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">💰</div>
+									<div style="width: 36px; height: 36px; border-radius: 8px; background: #eff6ff; color: #2563eb; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">🚗</div>
 									<div>
-										<span style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Apurado</span>
+										<span style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Serviços Concluídos</span>
+										<span id="statTotalServicosExecutados" style="display: block; font-size: 1.25rem; font-weight: 700; color: var(--text-main);">0</span>
+									</div>
+								</div>
+								<div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 12px; display: flex; align-items: center; gap: 12px;">
+									<div style="width: 36px; height: 36px; border-radius: 8px; background: #dcfce7; color: #16a34a; display: flex; align-items: center; justify-content: center; font-size: 1.1rem;">💰</div>
+									<div>
+										<span style="display: block; font-size: 0.75rem; color: var(--text-muted); font-weight: 600; text-transform: uppercase;">Comissões a Pagar</span>
 										<span id="statTotalComissoes" style="display: block; font-size: 1.25rem; font-weight: 700; color: var(--text-main);">R$ 0,00</span>
 									</div>
 								</div>
 							</div>
 
-							<!-- Form Novo Membro da Equipe -->
-							<div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 16px; margin-bottom: 24px;">
-								<h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
-									<span>➕ Cadastrar Profissional</span>
-								</h3>
+							<!-- Form Cadastro / Edição de Membro da Equipe -->
+							<div style="background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: var(--radius-md); padding: 18px; margin-bottom: 24px;">
+								<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+									<h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0; display: flex; align-items: center; gap: 6px;">
+										<span id="formMembroTitulo">➕ Cadastrar Profissional</span>
+									</h3>
+									<button type="button" id="btnCancelarEdicaoMembro" class="btn btn-secondary btn-sm" style="display: none;">Cancelar Edição</button>
+								</div>
 								<form id="formNovoMembro" class="form">
 									<div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
 										<div class="form-group" style="margin-bottom: 0;">
-											<label for="membroNome" style="font-size: 0.85rem;">Nome *</label>
-											<input type="text" id="membroNome" required placeholder="Ex: Danilo" style="padding: 6px 10px; font-size: 0.9rem;" />
+											<label for="membroNome" style="font-size: 0.85rem;">Nome do Profissional *</label>
+											<input type="text" id="membroNome" required placeholder="Ex: Carlos Eduardo" style="padding: 6px 10px; font-size: 0.9rem;" />
 										</div>
 										<div class="form-group" style="margin-bottom: 0;">
-											<label for="membroCargo" style="font-size: 0.85rem;">Cargo</label>
-											<input type="text" id="membroCargo" placeholder="Ex: Lavador" style="padding: 6px 10px; font-size: 0.9rem;" />
+											<label for="membroCargo" style="font-size: 0.85rem;">Função / Especialidade</label>
+											<input type="text" id="membroCargo" placeholder="Ex: Detailer / Lavador / Polidor" style="padding: 6px 10px; font-size: 0.9rem;" />
 										</div>
-										<div style="display: grid; grid-template-columns: 2fr 1fr; gap: 12px;">
+										<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
 											<div class="form-group" style="margin-bottom: 0;">
-												<label for="membroTipoComissao" style="font-size: 0.85rem;">Tipo</label>
+												<label for="membroTipoComissao" style="font-size: 0.85rem;">Tipo de Comissão *</label>
 												<select id="membroTipoComissao" style="padding: 6px 10px; font-size: 0.9rem;">
 													<option value="percentual">Porcentagem (%)</option>
-													<option value="fixo">Fixo (R$)</option>
+													<option value="fixo">Valor Fixo (R$)</option>
 												</select>
 											</div>
 											<div class="form-group" style="margin-bottom: 0;">
-												<label for="membroValorComissao" style="font-size: 0.85rem;">Valor *</label>
-												<input type="number" id="membroValorComissao" step="0.5" min="0" required placeholder="0.0" style="padding: 6px 10px; font-size: 0.9rem;" />
+												<label for="membroValorComissao" id="labelValorComissao" style="font-size: 0.85rem;">Comissão por Serviço (%) *</label>
+												<input type="number" id="membroValorComissao" step="0.01" min="0" required placeholder="Ex: 30" style="padding: 6px 10px; font-size: 0.9rem;" />
 											</div>
 										</div>
-										<button type="submit" class="btn btn-primary" style="margin-top: 8px; width: 100%;">💾 Cadastrar</button>
+										<button type="submit" id="btnSalvarMembro" class="btn btn-primary" style="margin-top: 8px; width: 100%;">💾 Salvar Profissional</button>
 									</div>
 								</form>
 							</div>
 
+							<!-- Tabela de Membros Cadastrados -->
+							<div style="margin-bottom: 28px;">
+								<h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 12px; display: flex; align-items: center; gap: 6px;">
+									<span>👥 Integrantes Cadastrados na Equipe</span>
+								</h3>
+								<div class="table-responsive" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto;">
+									<table class="tabela" style="width: 100%; font-size: 0.85rem; border: none;">
+										<thead>
+											<tr>
+												<th>Nome</th>
+												<th>Função</th>
+												<th>Regra de Comissão</th>
+												<th>Status</th>
+												<th style="text-align: center;">Ações</th>
+											</tr>
+										</thead>
+										<tbody id="corpoTabelaMembros">
+											<!-- Preenchido via JS -->
+										</tbody>
+									</table>
+								</div>
+							</div>
+
 							<!-- Relatório de Produtividade e Comissões -->
 							<div style="border-top: 1px solid var(--border-color); padding-top: 20px;">
-								<h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin-bottom: 12px;">Apuração de Comissões</h3>
-								<div style="display:flex; flex-wrap: wrap; gap:8px; align-items:center; margin-bottom: 16px;">
-									<input type="date" id="filtroComissaoInicio" style="padding:4px 8px; font-size:0.85rem; border:1px solid var(--border-color); border-radius:4px;" />
-									<span style="font-size:0.85rem; color:var(--text-muted);">até</span>
-									<input type="date" id="filtroComissaoFim" style="padding:4px 8px; font-size:0.85rem; border:1px solid var(--border-color); border-radius:4px;" />
-									<button type="button" class="btn btn-secondary btn-sm" onclick="filtrarComissoes()">Filtrar</button>
+								<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 12px;">
+									<h3 style="font-size: 0.95rem; font-weight: 700; color: var(--text-main); margin: 0;">
+										📊 Apuração de Comissões por Período
+									</h3>
+									<div style="display: flex; flex-wrap: wrap; gap: 8px; align-items: center;">
+										<input type="date" id="filtroComissaoInicio" style="padding: 4px 8px; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;" />
+										<span style="font-size: 0.85rem; color: var(--text-muted);">até</span>
+										<input type="date" id="filtroComissaoFim" style="padding: 4px 8px; font-size: 0.85rem; border: 1px solid var(--border-color); border-radius: 4px;" />
+										<button type="button" id="btnFiltrarComissoes" class="btn btn-primary btn-sm" onclick="filtrarComissoes()">Filtrar</button>
+										<button type="button" id="btnLimparFiltroComissoes" class="btn btn-secondary btn-sm" onclick="limparFiltroComissoes()">Ver Todos</button>
+									</div>
 								</div>
 								
-								<div class="table-responsive" style="margin-top: 10px; overflow-x: auto; -webkit-overflow-scrolling: touch; border: 1px solid var(--border-color); border-radius: var(--radius-sm);">
-									<!-- Retirado min-width: 800px; e white-space: nowrap para permitir que a tabela esprema -->
+								<div class="table-responsive" style="border: 1px solid var(--border-color); border-radius: var(--radius-sm); overflow-x: auto;">
 									<table class="tabela" style="width: 100%; font-size: 0.85rem; border: none;">
 										<thead>
 											<tr>
 												<th>Profissional</th>
-												<th>Regra</th>
-												<th>Faturamento</th>
-												<th>A Pagar</th>
-												<th style="text-align:center;">Ações</th>
+												<th>Função</th>
+												<th>Qtd Serviços</th>
+												<th>Faturamento Total</th>
+												<th>Comissão Total a Pagar</th>
 											</tr>
 										</thead>
 										<tbody id="corpoTabelaComissoes">
@@ -753,10 +790,16 @@
 										Como <strong>Administrador Master (Admin)</strong>, você tem poder para criar negócios e empresas isoladas (Lava-Jato, Barbearia, etc.). Cada empresa tem seu próprio banco de dados, clientes, serviços e equipe isolados na nuvem.
 									</p>
 								</div>
-								<button type="button" class="btn btn-primary" onclick="abrirModalNovaEmpresa()" style="display: flex; align-items: center; gap: 6px;">
-									<span>➕</span>
-									<span>Cadastrar Nova Empresa</span>
-								</button>
+								<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+									<button type="button" class="btn" onclick="baixarBackupCompletoMaster()" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #1e293b; font-weight: 600; display: flex; align-items: center; gap: 6px;" title="Baixar todos os dados e estabelecimentos do banco de dados em arquivo JSON">
+										<span>📥</span>
+										<span>Baixar Banco Completo (JSON)</span>
+									</button>
+									<button type="button" class="btn btn-primary" onclick="abrirModalNovaEmpresa()" style="display: flex; align-items: center; gap: 6px;">
+										<span>➕</span>
+										<span>Cadastrar Nova Empresa</span>
+									</button>
+								</div>
 							</div>
 
 							<!-- Cards de Resumo -->
@@ -899,59 +942,59 @@
 			</div>
 		</div>
 
+		<!-- MODAL: CONFIRMAR EXCLUSÃO TOTAL DE EMPRESA (EXCLUSIVO MASTER) -->
+		<div id="modalExcluirEmpresa" class="modal-backdrop" style="display: none; align-items: center; justify-content: center;">
+			<div class="modal-dialog" style="max-width: 520px; width: 95%; border-top: 4px solid #ef4444;">
+				<div class="modal-header">
+					<h3 class="modal-title" style="display: flex; align-items: center; gap: 8px; color: #b91c1c; font-size: 1.1rem;">
+						<span>⚠️</span>
+						<span>Excluir Estabelecimento e Dados</span>
+					</h3>
+					<button type="button" class="btn-close-modal" onclick="fecharModalExcluirEmpresa()">✕</button>
+				</div>
+				<div class="modal-body" style="padding: 20px; display: flex; flex-direction: column; gap: 14px;">
+					<div style="background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px 14px; color: #991b1b; font-size: 0.85rem; line-height: 1.5;">
+						<strong>ATENÇÃO: AÇÃO DEFINITIVA E IRREVERSÍVEL!</strong><br>
+						Você está prestes a excluir permanentemente o negócio <strong id="modalExcluirEmpresaNome" style="color: #111827; text-decoration: underline;">-</strong>.<br>
+						Esta ação irá <strong>apagar totalmente do banco de dados na nuvem (Firestore)</strong>:
+						<ul style="margin: 6px 0 0 18px; padding: 0;">
+							<li>Todos os clientes e veículos</li>
+							<li>Histórico de pedidos, vistorias e O.S.</li>
+							<li>Caixa, fechamentos e movimentações</li>
+							<li>Estoque, serviços, equipe e agendamentos</li>
+							<li>Usuários de login vinculados a esta empresa</li>
+						</ul>
+					</div>
+
+					<div class="form-group" style="margin-top: 4px;">
+						<label for="modalExcluirConfirmacaoInput" style="font-size: 0.85rem; font-weight: 600; color: var(--text-main); display: block; margin-bottom: 6px;">
+							Para confirmar, digite exatamente o nome da empresa (<span id="modalExcluirEmpresaNomeInstrucao" style="color: #b91c1c; font-weight: 700;">-</span>) abaixo:
+						</label>
+						<input type="text" id="modalExcluirConfirmacaoInput" placeholder="Digite o nome da empresa aqui" style="width: 100%; padding: 10px 12px; font-size: 0.95rem; border: 2px solid #cbd5e1; border-radius: 6px; box-sizing: border-box;" oninput="validarConfirmacaoExclusao()" />
+						<div id="modalExcluirMensagemErro" style="color: #dc2626; font-size: 0.78rem; margin-top: 4px; display: none;">O nome digitado ainda não confere.</div>
+					</div>
+
+					<input type="hidden" id="modalExcluirEmpresaId" value="" />
+				</div>
+				<div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 8px; padding: 14px 20px; background: var(--bg-surface); border-top: 1px solid var(--border-color);">
+					<button type="button" class="btn btn-secondary" onclick="fecharModalExcluirEmpresa()">Cancelar</button>
+					<button type="button" class="btn" id="btnConfirmarExclusaoEmpresa" style="background: #dc2626; color: #ffffff; border: none; font-weight: 700; padding: 8px 16px; opacity: 0.45; cursor: not-allowed;" disabled onclick="executarExclusaoEmpresaConfirmada()">
+						🗑️ Excluir Definitivamente do Banco
+					</button>
+				</div>
+			</div>
+		</div>
+
 		<!-- Scripts -->
 		<script src="https://accounts.google.com/gsi/client" async defer></script>
 		<script src="js/brand-service.js"></script>
 		<script src="js/xlsx.full.min.js"></script>
 		<script src="js/database-excel.js"></script>
 		<script src="js/google-drive-service.js"></script>
-		<script src="js/configuracoes.js"></script>
-	
 		<script src="js/caixa-service.js"></script>
 		<script src="js/equipe-service.js"></script>
+		<script src="js/configuracoes.js"></script>
 		<script>
-			function filtrarComissoes() {
-				const inicio = document.getElementById('filtroComissaoInicio');
-				const fim = document.getElementById('filtroComissaoFim');
-				if (!inicio || !fim) return;
-				const relatorio = EquipeService.calcularComissoesPorPeriodo(inicio.value, fim.value);
-				const corpo = document.getElementById('corpoTabelaComissoes');
-				if (!corpo) return;
-				const statEquipe = document.getElementById('statTotalEquipe');
-				if (statEquipe) statEquipe.textContent = relatorio.length;
-				let totalGeralComissoes = 0;
-				relatorio.forEach(r => totalGeralComissoes += r.totalComissao);
-				const statComissoes = document.getElementById('statTotalComissoes');
-				if (statComissoes) statComissoes.textContent = `R$ ${totalGeralComissoes.toFixed(2)}`;
-				corpo.innerHTML = '';
-				if (relatorio.length === 0) {
-					corpo.innerHTML = '<tr><td colspan="5" class="empty-table-message">Nenhum membro cadastrado na equipe.</td></tr>';
-					return;
-				}
-				relatorio.forEach(r => {
-					const m = r.membro;
-					const regraFmt = m.tipoComissao === 'percentual' ? `${m.valorComissao}%` : `R$ ${parseFloat(m.valorComissao).toFixed(2)} fixo`;
-					const tr = document.createElement('tr');
-					tr.innerHTML = `
-						<td>
-							<strong>${m.nome}</strong>
-							<div style="font-size: 0.7rem; color: var(--text-muted);">${m.cargo || 'Equipe'} - ${r.qtdServicos} carros</div>
-						</td>
-						<td><span class="badge" style="background:#f1f5f9; color:#334155;">${regraFmt}</span></td>
-						<td>R$ ${r.totalFaturado.toFixed(2)}</td>
-						<td><span class="badge-price" style="background:#dcfce7; color:#15803d; font-size:0.85rem;">R$ ${r.totalComissao.toFixed(2)}</span></td>
-						<td style="text-align:center;">
-							<button type="button" class="btn btn-sm" style="background:transparent; border:1px solid #ef4444; color:#ef4444; padding:3px 8px;" onclick="removerMembroEquipe('${m.id}')">🗑️</button>
-						</td>
-					`;
-					corpo.appendChild(tr);
-				});
-			}
-			window.removerMembroEquipe = function(id) {
-				EquipeService.removerMembro(id);
-				filtrarComissoes();
-			};
-			
 			// Setup only once when DOM loads
 
 			// ==========================================
@@ -1059,22 +1102,6 @@
 				}
 				
 				renderizarUsuarios();
-			});
-
-			document.addEventListener('DOMContentLoaded', () => {
-				const formMembro = document.getElementById('formNovoMembro');
-				if (formMembro) {
-					formMembro.addEventListener('submit', (e) => {
-						e.preventDefault();
-						const nome = document.getElementById('membroNome').value.trim();
-						const cargo = document.getElementById('membroCargo').value.trim();
-						const tipoComissao = document.getElementById('membroTipoComissao').value;
-						const valorComissao = parseFloat(document.getElementById('membroValorComissao').value || 0);
-						EquipeService.adicionarMembro({ nome, cargo, tipoComissao, valorComissao });
-						document.getElementById('formNovoMembro').reset();
-						filtrarComissoes();
-					});
-				}
 			});
 		</script>
 

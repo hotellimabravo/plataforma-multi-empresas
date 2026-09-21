@@ -510,15 +510,29 @@ function renderizarTabelas() {
 
 	// Vincular eventos de Cancelar/Excluir
 	document.querySelectorAll('.btn-cancelar-os').forEach((btn) => {
-		btn.addEventListener('click', (e) => {
+		btn.addEventListener('click', async (e) => {
 			const osId = e.currentTarget.getAttribute('data-id');
 			const todosPedidos = JSON.parse(localStorage.getItem('pedidos')) || [];
 			const p = todosPedidos.find((item) => item.id === osId);
 			if (!p) return;
 
-			if (confirm(`Deseja realmente remover o registro da O.S. da placa "${p.placa}" (${p.cliente})?`)) {
+			let confirmado = false;
+			if (window.UI) {
+				confirmado = await window.UI.confirm({
+					title: 'Cancelar O.S.',
+					message: `Deseja realmente remover o registro da O.S. da placa <strong>"${p.placa}"</strong> (${p.cliente})?`,
+					confirmText: 'Sim, Remover O.S.',
+					danger: true,
+					icon: '🗑️'
+				});
+			} else {
+				confirmado = confirm(`Deseja realmente remover o registro da O.S. da placa "${p.placa}" (${p.cliente})?`);
+			}
+
+			if (confirmado) {
 				const atualizados = todosPedidos.filter((item) => item.id !== osId);
 				localStorage.setItem('pedidos', JSON.stringify(atualizados));
+				if (window.UI) window.UI.toast('Ordem de serviço removida.', 'info');
 				renderizarTabelas();
 			}
 		});
@@ -658,7 +672,8 @@ if (modalBtnAddProdutoBalcao && modalSelectProdutoBalcao) {
 	modalBtnAddProdutoBalcao.addEventListener('click', () => {
 		const opt = modalSelectProdutoBalcao.selectedOptions[0];
 		if (!opt || !opt.value) {
-			alert('Selecione um produto para adicionar à O.S.');
+			if (window.UI) window.UI.toast('Selecione um produto para adicionar à O.S.', 'warning');
+			else alert('Selecione um produto para adicionar à O.S.');
 			return;
 		}
 
@@ -839,7 +854,8 @@ if (pedidoForm) {
 			.map((o) => o.value);
 
 		if (servicosSelecionados.length === 0) {
-			alert('Por favor, selecione ao menos um serviço para o atendimento.');
+			if (window.UI) window.UI.toast('Por favor, selecione ao menos um serviço para o atendimento.', 'warning');
+			else alert('Por favor, selecione ao menos um serviço para o atendimento.');
 			return;
 		}
 
