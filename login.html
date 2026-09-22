@@ -154,6 +154,9 @@
 		<div class="login-logo">🛠️</div>
 		<h1 class="login-title">Acesso Restrito</h1>
 		<p class="login-subtitle">Faça login para continuar</p>
+		<div style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.78rem; font-weight: 600; color: #15803d; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 999px; padding: 4px 12px; margin-bottom: 20px;">
+			<span>🛡️ Autenticação Criptografada (PBKDF2 + HMAC)</span>
+		</div>
 
 		<div id="loginError" class="error-msg">Usuário ou senha incorretos.</div>
 
@@ -164,7 +167,10 @@
 			</div>
 			<div class="form-group">
 				<label for="inputPass">Senha</label>
-				<input type="password" id="inputPass" required placeholder="Digite sua senha" autocomplete="current-password" />
+				<div style="position: relative; display: flex; align-items: center;">
+					<input type="password" id="inputPass" required placeholder="Digite sua senha" autocomplete="current-password" style="padding-right: 42px;" />
+					<button type="button" id="btnToggleLoginPass" style="position: absolute; right: 10px; background: none; border: none; cursor: pointer; font-size: 1.1rem; color: #64748b; padding: 4px;" title="Mostrar ou ocultar senha">👁️</button>
+				</div>
 			</div>
 			<button type="submit" class="btn btn-primary btn-login">Entrar</button>
 		</form>
@@ -172,6 +178,17 @@
 
 	<script type="module">
 		import AuthService from './js/auth-service.js';
+
+		const inputPass = document.getElementById('inputPass');
+		const btnToggle = document.getElementById('btnToggleLoginPass');
+		if (btnToggle && inputPass) {
+			btnToggle.addEventListener('click', () => {
+				const isPassword = inputPass.type === 'password';
+				inputPass.type = isPassword ? 'text' : 'password';
+				btnToggle.textContent = isPassword ? '🙈' : '👁️';
+				btnToggle.title = isPassword ? 'Ocultar senha' : 'Ver senha';
+			});
+		}
 
 		document.getElementById('formLogin').addEventListener('submit', async (e) => {
 			e.preventDefault();

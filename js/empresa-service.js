@@ -189,7 +189,11 @@ const EmpresaService = {
 
         if (!nome || !nome.trim()) throw new Error('O nome do estabelecimento é obrigatório.');
         if (!adminUsername || !adminUsername.trim()) throw new Error('O usuário de acesso é obrigatório.');
-        if (!adminPassword || adminPassword.length < 4) throw new Error('A senha deve ter pelo menos 4 caracteres.');
+        
+        const passCheck = AuthService.validarForcaSenha(adminPassword);
+        if (!passCheck.valido) {
+            throw new Error(`Senha do Administrador inválida: ${passCheck.mensagem}`);
+        }
 
         const cleanUsername = adminUsername.trim().toLowerCase();
         if (cleanUsername === 'admin') {

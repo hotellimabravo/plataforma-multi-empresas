@@ -584,7 +584,35 @@
 										</div>
 										<div class="form-group" style="margin-bottom: 0;">
 											<label for="userPassword" style="font-size: 0.85rem;">Senha <span id="labelSenhaDica"></span></label>
-											<input type="password" id="userPassword" placeholder="***" style="padding: 6px 10px; font-size: 0.9rem;" />
+											<div style="position: relative; display: flex; align-items: center;">
+												<input type="password" id="userPassword" placeholder="Digite uma senha segura" style="width: 100%; padding: 6px 36px 6px 10px; font-size: 0.9rem;" autocomplete="new-password" />
+												<button type="button" id="btnToggleUserPass" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 1rem; color: #64748b; padding: 2px;" title="Ver ou ocultar senha">👁️</button>
+											</div>
+										</div>
+									</div>
+
+									<!-- Indicador e Requisitos de Segurança da Senha (Padrão da Internet) -->
+									<div id="boxRequisitosUser" style="margin-top: 12px; background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 10px 14px; font-size: 0.8rem;">
+										<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+											<span style="font-weight: 600; color: var(--text-main);">🛡️ Requisitos de Segurança da Senha:</span>
+											<span id="badgeForcaUser" style="font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: #e2e8f0; color: #64748b;">Aguardando digitação</span>
+										</div>
+										<div style="height: 4px; width: 100%; background: #e2e8f0; border-radius: 2px; overflow: hidden; margin-bottom: 8px;">
+											<div id="barraForcaUser" style="height: 100%; width: 0%; transition: all 0.3s ease; background: #94a3b8;"></div>
+										</div>
+										<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px; font-size: 0.78rem;">
+											<div id="reqMinimoUser" style="display: flex; align-items: center; gap: 6px; color: #64748b;">
+												<span class="icon-req">⚪</span> Mínimo 8 caracteres
+											</div>
+											<div id="reqMaiusculaUser" style="display: flex; align-items: center; gap: 6px; color: #64748b;">
+												<span class="icon-req">⚪</span> 1 letra maiúscula (A-Z)
+											</div>
+											<div id="reqNumeroUser" style="display: flex; align-items: center; gap: 6px; color: #64748b;">
+												<span class="icon-req">⚪</span> 1 número (0-9)
+											</div>
+											<div id="reqEspecialUser" style="display: flex; align-items: center; gap: 6px; color: #64748b;">
+												<span class="icon-req">⚪</span> 1 caractere especial (!@#$...)
+											</div>
 										</div>
 									</div>
 
@@ -929,7 +957,23 @@
 								</div>
 								<div>
 									<label for="novoAdminPassword" style="font-size: 0.8rem;">Senha Inicial *</label>
-									<input type="password" id="novoAdminPassword" required minlength="4" placeholder="Mínimo 4 caracteres" style="width: 100%; padding: 6px 10px; font-size: 0.85rem;" />
+									<div style="position: relative; display: flex; align-items: center;">
+										<input type="password" id="novoAdminPassword" required minlength="8" placeholder="Mínimo 8 caracteres" style="width: 100%; padding: 6px 36px 6px 10px; font-size: 0.85rem;" autocomplete="new-password" />
+										<button type="button" id="btnToggleNovoAdminPass" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 1rem; color: #64748b; padding: 2px;" title="Ver ou ocultar senha">👁️</button>
+									</div>
+								</div>
+							</div>
+							<!-- Requisitos da Senha para Nova Empresa -->
+							<div id="boxRequisitosAdmin" style="background: #f8fafc; border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 8px 12px; font-size: 0.76rem;">
+								<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+									<span style="font-weight: 600; color: var(--text-main);">🛡️ Padrão de Segurança Obrigatório:</span>
+									<span id="badgeForcaAdmin" style="font-size: 0.7rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: #e2e8f0; color: #64748b;">Mínimo 8 chars</span>
+								</div>
+								<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px;">
+									<div id="reqMinimoAdmin" style="color: #64748b;"><span class="icon-req">⚪</span> 8+ caracteres</div>
+									<div id="reqMaiusculaAdmin" style="color: #64748b;"><span class="icon-req">⚪</span> 1 maiúscula (A-Z)</div>
+									<div id="reqNumeroAdmin" style="color: #64748b;"><span class="icon-req">⚪</span> 1 número (0-9)</div>
+									<div id="reqEspecialAdmin" style="color: #64748b;"><span class="icon-req">⚪</span> 1 especial (!@#$...)</div>
 								</div>
 							</div>
 						</div>
@@ -1033,6 +1077,82 @@
 				});
 			}
 
+			function atualizarIndicadorSenha(pass, prefixo) {
+				const check = AuthService.validarForcaSenha(pass);
+				const reqMin = document.getElementById(`reqMinimo${prefixo}`);
+				const reqMai = document.getElementById(`reqMaiuscula${prefixo}`);
+				const reqNum = document.getElementById(`reqNumero${prefixo}`);
+				const reqEsp = document.getElementById(`reqEspecial${prefixo}`);
+				const badge = document.getElementById(`badgeForca${prefixo}`);
+				const barra = document.getElementById(`barraForca${prefixo}`);
+
+				const setItem = (el, ok) => {
+					if (!el) return;
+					const icon = el.querySelector('.icon-req') || el;
+					if (ok) {
+						el.style.color = '#15803d';
+						el.style.fontWeight = '600';
+						if (icon !== el) icon.textContent = '🟢';
+					} else {
+						el.style.color = '#64748b';
+						el.style.fontWeight = 'normal';
+						if (icon !== el) icon.textContent = '⚪';
+					}
+				};
+
+				if (!pass) {
+					setItem(reqMin, false);
+					setItem(reqMai, false);
+					setItem(reqNum, false);
+					setItem(reqEsp, false);
+					if (badge) {
+						badge.textContent = 'Aguardando digitação';
+						badge.style.background = '#e2e8f0';
+						badge.style.color = '#64748b';
+					}
+					if (barra) {
+						barra.style.width = '0%';
+						barra.style.background = '#94a3b8';
+					}
+					return;
+				}
+
+				setItem(reqMin, check.detalhes.temMinimo);
+				setItem(reqMai, check.detalhes.temMaiuscula);
+				setItem(reqNum, check.detalhes.temNumero);
+				setItem(reqEsp, check.detalhes.temEspecial);
+
+				let pontos = 0;
+				if (check.detalhes.temMinimo) pontos++;
+				if (check.detalhes.temMaiuscula) pontos++;
+				if (check.detalhes.temNumero) pontos++;
+				if (check.detalhes.temEspecial) pontos++;
+
+				if (badge) {
+					if (pontos === 4) {
+						badge.textContent = 'Forte e Segura ✅';
+						badge.style.background = '#dcfce7';
+						badge.style.color = '#15803d';
+					} else if (pontos >= 2) {
+						badge.textContent = 'Média ⚠️';
+						badge.style.background = '#fef9c3';
+						badge.style.color = '#854d0e';
+					} else {
+						badge.textContent = 'Fraca ❌';
+						badge.style.background = '#fee2e2';
+						badge.style.color = '#b91c1c';
+					}
+				}
+
+				if (barra) {
+					const pct = (pontos / 4) * 100;
+					barra.style.width = `${pct}%`;
+					if (pontos === 4) barra.style.background = '#22c55e';
+					else if (pontos >= 2) barra.style.background = '#eab308';
+					else barra.style.background = '#ef4444';
+				}
+			}
+
 			function limparFormUsuario() {
 				document.getElementById('formUsuario').reset();
 				document.getElementById('userId').value = '';
@@ -1040,7 +1160,10 @@
 				document.getElementById('userPassword').required = true;
 				document.getElementById('labelSenhaDica').textContent = '*';
 				document.getElementById('btnCancelarEdicaoUser').style.display = 'none';
+				atualizarIndicadorSenha('', 'User');
 			}
+
+			window.limparFormUsuario = limparFormUsuario;
 
 			window.editarUsuario = function(id) {
 				const users = AuthService.getUsers();
@@ -1052,7 +1175,7 @@
 				document.getElementById('userUsername').value = user.username;
 				document.getElementById('userPassword').value = '';
 				document.getElementById('userPassword').required = false;
-				document.getElementById('labelSenhaDica').textContent = '(Deixe em branco para não alterar)';
+				document.getElementById('labelSenhaDica').textContent = '(Deixe em branco para manter a atual)';
 				
 				document.getElementById('tituloFormUser').textContent = '✏️ Editar Usuário';
 				document.getElementById('btnCancelarEdicaoUser').style.display = 'inline-block';
@@ -1062,6 +1185,7 @@
 					cb.checked = user.permissoes && user.permissoes.includes(cb.value);
 				});
 				
+				atualizarIndicadorSenha('', 'User');
 				alternarAbaConfig('usuarios');
 			};
 
@@ -1073,6 +1197,43 @@
 			};
 
 			document.addEventListener('DOMContentLoaded', () => {
+				// 1. Toggle Senha Usuário
+				const inputUserPass = document.getElementById('userPassword');
+				const btnToggleUserPass = document.getElementById('btnToggleUserPass');
+				if (btnToggleUserPass && inputUserPass) {
+					btnToggleUserPass.addEventListener('click', () => {
+						const isPass = inputUserPass.type === 'password';
+						inputUserPass.type = isPass ? 'text' : 'password';
+						btnToggleUserPass.textContent = isPass ? '🙈' : '👁️';
+					});
+				}
+
+				// 2. Real-time feedback Senha Usuário
+				if (inputUserPass) {
+					inputUserPass.addEventListener('input', () => {
+						atualizarIndicadorSenha(inputUserPass.value, 'User');
+					});
+				}
+
+				// 3. Toggle Senha Nova Empresa Admin
+				const inputAdminPass = document.getElementById('novoAdminPassword');
+				const btnToggleAdminPass = document.getElementById('btnToggleNovoAdminPass');
+				if (btnToggleAdminPass && inputAdminPass) {
+					btnToggleAdminPass.addEventListener('click', () => {
+						const isPass = inputAdminPass.type === 'password';
+						inputAdminPass.type = isPass ? 'text' : 'password';
+						btnToggleAdminPass.textContent = isPass ? '🙈' : '👁️';
+					});
+				}
+
+				// 4. Real-time feedback Senha Nova Empresa Admin
+				if (inputAdminPass) {
+					inputAdminPass.addEventListener('input', () => {
+						atualizarIndicadorSenha(inputAdminPass.value, 'Admin');
+					});
+				}
+
+				// 5. Submit Form Usuário com Validação Rigorosa
 				const formUser = document.getElementById('formUsuario');
 				if (formUser) {
 					formUser.addEventListener('submit', async (e) => {
@@ -1082,21 +1243,38 @@
 						const username = document.getElementById('userUsername').value.trim();
 						const pass = document.getElementById('userPassword').value;
 						
+						// Se for novo ou se preencheu senha na edição, valida os requisitos
+						if (!id || (pass && pass.trim() !== '')) {
+							const check = AuthService.validarForcaSenha(pass);
+							if (!check.valido) {
+								if (window.UI) {
+									window.UI.alert('A senha informada não atende ao padrão de segurança:<br><br>• ' + check.erros.join('<br>• '), 'Senha Insegura');
+								} else {
+									alert('A senha informada não atende aos requisitos:\n- ' + check.erros.join('\n- '));
+								}
+								document.getElementById('userPassword').focus();
+								return;
+							}
+						}
+
 						const checkboxes = document.querySelectorAll('input[name="permissoes"]:checked');
 						const permissoes = Array.from(checkboxes).map(cb => cb.value);
 
 						try {
 							if (id) {
 								await AuthService.updateUser(id, nome, username, pass, permissoes);
-								alert('Usuário atualizado com sucesso!');
+								if (window.UI) window.UI.toast('Usuário atualizado com segurança!', 'success');
+								else alert('Usuário atualizado com sucesso!');
 							} else {
 								await AuthService.addUser(nome, username, pass, permissoes);
-								alert('Usuário cadastrado com sucesso!');
+								if (window.UI) window.UI.toast('Usuário cadastrado com credenciais criptografadas!', 'success');
+								else alert('Usuário cadastrado com sucesso!');
 							}
 							limparFormUsuario();
 							renderizarUsuarios();
 						} catch (err) {
-							alert(err.message);
+							if (window.UI) window.UI.toast(err.message, 'error');
+							else alert(err.message);
 						}
 					});
 				}

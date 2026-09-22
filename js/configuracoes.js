@@ -834,6 +834,19 @@ async function salvarNovaEmpresaMaster(e) {
 	const adminPassword = document.getElementById('novoAdminPassword').value;
 	const telefone = document.getElementById('novoAdminTelefone').value.trim();
 
+	if (window.AuthService) {
+		const check = window.AuthService.validarForcaSenha(adminPassword);
+		if (!check.valido) {
+			if (window.UI) {
+				window.UI.alert('A senha do Administrador não atende aos requisitos de segurança:<br><br>• ' + check.erros.join('<br>• '), 'Senha Insegura');
+			} else {
+				alert('A senha não atende aos requisitos de segurança:\n- ' + check.erros.join('\n- '));
+			}
+			document.getElementById('novoAdminPassword').focus();
+			return;
+		}
+	}
+
 	try {
 		if (btn) {
 			btn.disabled = true;

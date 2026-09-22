@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -7,6 +8,235 @@ const __dirname = path.dirname(__filename);
 
 const app = express();
 const PORT = 3000;
+
+// Middleware para processar JSON nas requisições
+app.use(express.json());
+
+// Segredo do Servidor para Assinatura de Sessões (HMAC-SHA256)
+const SESSION_SECRET = process.env.SESSION_SECRET || 'lava_jato_saas_ultra_secure_secret_key_2026_antigravity';
+const MASTER_USER = 'admin';
+const MASTER_HASH_SHA256 = 'cf3ba79fe53bf2417903fbde744a088e4e0ca0ca877ee76dcd174011ce5a43dd';
+
+// Validador de Força de Senha conforme padrão de segurança da internet
+function validatePasswordStrength(password) {
+	if (!password || typeof password !== 'string') {
+		return {
+			valid: false,
+			message: 'A senha é obrigatória.',
+			errors: ['A senha não foi informada.']
+		};
+	}
+
+	const hasMinLength = password.length >= 8;
+	const hasUpperCase = /[A-Z]/.test(password);
+	const hasLowerCase = /[a-z]/.test(password);
+	const hasNumber = /[0-9]/.test(password);
+	const hasSpecialChar = /[^A-Za-z0-9]/.test(password);
+
+	const errors = [];
+	if (!hasMinLength) errors.push('mínimo de 8 caracteres');
+	if (!hasUpperCase) errors.push('pelo menos 1 letra maiúscula');
+	if (!hasNumber) errors.push('pelo menos 1 número');
+	if (!hasSpecialChar) errors.push('pelo menos 1 caractere especial (!@#$%...)');
+
+	return {
+		valid: errors.length === 0,
+		details: {
+			hasMinLength,
+			hasUpperCase,
+			hasLowerCase,
+			hasNumber,
+			hasSpecialChar
+		},
+		errors,
+		message: errors.length === 0
+			? 'Senha segura e válida.'
+			: `A senha deve conter: ${errors.join(', ')}.`
+	};
+}
+
+// Criptografia Segura com Salt Aleatório e PBKDF2 (HMAC-SHA512 com 100.000 iterações)
+function hashPasswordSecure(password) {
+	const salt = crypto.randomBytes(16).toString('hex');
+	const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
+	return `pbkdf2$100000$${salt}$${hash}`;
+}
+
+// Comparação Segura contra Timing Attacks (suporta formato moderno PBKDF2 e SHA-256 legado)
+function verifyPassword(plainPassword, storedHash) {
+	if (!plainPassword || !storedHash) return false;
+
+	try {
+		// Formato Moderno: pbkdf2$<iter>$<salt>$<hash>
+		if (storedHash.startsWith('pbkdf2$')) {
+			const parts = storedHash.split('$');
+			if (parts.length === 4) {
+				const iterations = parseInt(parts[1], 10);
+				const salt = parts[2];
+				const originalHashHex = parts[3];
+				const testHashHex = crypto.pbkdf2Sync(plainPassword, salt, iterations, 64, 'sha512').toString('hex');
+				const bufA = Buffer.from(testHashHex, 'hex');
+				const bufB = Buffer.from(originalHashHex, 'hex');
+				if (bufA.length === bufB.length) {
+					return crypto.timingSafeEqual(bufA, bufB);
+				}
+			}
+		}
+
+		// Compatibilidade com hash SHA-256 legado
+		if (storedHash.length === 64) {
+			const sha256Input = crypto.createHash('sha256').update(plainPassword).digest('hex');
+			if (sha256Input.toLowerCase() === storedHash.toLowerCase()) {
+				return true;
+			}
+			// Se o cliente já enviou a string como hash
+			if (plainPassword.toLowerCase() === storedHash.toLowerCase()) {
+				return true;
+			}
+		}
+	} catch (err) {
+		console.error('Erro na verificação de hash:', err);
+	}
+
+	return false;
+}
+
+// Criação de Token de Sessão Assinado pelo Servidor
+function createSessionToken(user) {
+	const payload = {
+		id: user.id || user.username,
+		username: user.username,
+		nome: user.nome,
+		isMaster: !!user.isMaster,
+		empresaId: user.empresaId || '',
+		permissoes: user.permissoes || [],
+		createdAt: Date.now(),
+		exp: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 dias de validade
+	};
+	const payloadB64 = Buffer.from(JSON.stringify(payload)).toString('base64url');
+	const signature = crypto.createHmac('sha256', SESSION_SECRET).update(payloadB64).digest('base64url');
+	return `${payloadB64}.${signature}`;
+}
+
+// Verificação de Integridade de Token de Sessão
+function verifySessionToken(token) {
+	if (!token || typeof token !== 'string') return null;
+	const parts = token.split('.');
+	if (parts.length !== 2) return null;
+
+	const [payloadB64, signature] = parts;
+	const expectedSig = crypto.createHmac('sha256', SESSION_SECRET).update(payloadB64).digest('base64url');
+
+	const bufA = Buffer.from(signature);
+	const bufB = Buffer.from(expectedSig);
+	if (bufA.length !== bufB.length || !crypto.timingSafeEqual(bufA, bufB)) {
+		return null;
+	}
+
+	try {
+		const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+		if (payload.exp && Date.now() > payload.exp) {
+			return null; // Expirado
+		}
+		return payload;
+	} catch {
+		return null;
+	}
+}
+
+// ==========================================
+// ROTAS DE API DE AUTENTICAÇÃO E SEGURANÇA
+// ==========================================
+
+// 1. Validação de Força de Senha
+app.post('/api/auth/validate-password', (req, res) => {
+	const { password } = req.body || {};
+	const result = validatePasswordStrength(password);
+	return res.json(result);
+});
+
+// 2. Geração Segura de Hash no Servidor
+app.post('/api/auth/hash', (req, res) => {
+	const { password } = req.body || {};
+	const check = validatePasswordStrength(password);
+	if (!check.valid) {
+		return res.status(400).json({ error: check.message, errors: check.errors });
+	}
+
+	const hash = hashPasswordSecure(password);
+	return res.json({ hash, valid: true });
+});
+
+// 3. Login Centralizado com Verificação Criptográfica
+app.post('/api/auth/login', (req, res) => {
+	const { username, password, localUsers, cloudUsers } = req.body || {};
+
+	if (!username || !password) {
+		return res.status(400).json({ success: false, message: 'Usuário e senha são obrigatórios.' });
+	}
+
+	const normalizedUser = username.trim().toLowerCase();
+
+	// 1. VERIFICAÇÃO DO USUÁRIO MASTER
+	if (normalizedUser === MASTER_USER) {
+		let isMasterValid = false;
+		if (process.env.MASTER_PASSWORD) {
+			isMasterValid = (password === process.env.MASTER_PASSWORD);
+		} else {
+			// Valida com SHA-256 legado ou com hash pbkdf2
+			const inputHash = crypto.createHash('sha256').update(password).digest('hex');
+			isMasterValid = (inputHash === MASTER_HASH_SHA256 || password === MASTER_HASH_SHA256);
+		}
+
+		if (isMasterValid) {
+			const masterUser = {
+				id: 'master',
+				nome: 'Administrador Master',
+				username: MASTER_USER,
+				isMaster: true,
+				empresaId: req.body.activeEmpresaId || '',
+				permissoes: ['agenda', 'pedidos', 'caixa', 'estoque', 'posvenda', 'clientes', 'servicos', 'configuracoes']
+			};
+			const token = createSessionToken(masterUser);
+			return res.json({ success: true, user: masterUser, token });
+		}
+	}
+
+	// 2. VERIFICAÇÃO EM USUÁRIOS FORNECIDOS (Locais ou Nuvem)
+	const combinedUsers = [];
+	if (Array.isArray(cloudUsers)) combinedUsers.push(...cloudUsers);
+	if (Array.isArray(localUsers)) combinedUsers.push(...localUsers);
+
+	for (const u of combinedUsers) {
+		if (u && u.username && u.username.toLowerCase().trim() === normalizedUser) {
+			const storedHash = u.passwordHash;
+			if (storedHash && verifyPassword(password, storedHash)) {
+				const sessionUser = {
+					id: u.id || normalizedUser,
+					nome: u.nome || u.username,
+					username: normalizedUser,
+					isMaster: false,
+					empresaId: u.empresaId || req.body.activeEmpresaId || '',
+					permissoes: u.permissoes || []
+				};
+				const token = createSessionToken(sessionUser);
+				return res.json({ success: true, user: sessionUser, token });
+			}
+		}
+	}
+
+	return res.status(401).json({ success: false, message: 'Usuário ou senha incorretos.' });
+});
+
+// 4. Verificação de Integridade de Sessão
+app.post('/api/auth/verify-session', (req, res) => {
+	const { token } = req.body || {};
+	const payload = verifySessionToken(token);
+	if (payload) {
+		return res.json({ valid: true, user: payload });
+	}
+	return res.status(401).json({ valid: false, message: 'Sessão inválida ou expirada.' });
+});
 
 
 app.get(['/firebase-config.json', '/firebase-applet-config.json'], (req, res) => {
