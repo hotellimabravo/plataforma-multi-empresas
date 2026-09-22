@@ -168,10 +168,11 @@ const EmpresaService = {
         user.empresaId = target.id;
         localStorage.setItem('logged_in_user', JSON.stringify(user));
         localStorage.setItem('master_active_empresaId', target.id);
+        localStorage.setItem('current_tenant_session', target.id);
 
         // Limpa coleções temporárias para recarregar da nova empresa sem resquícios
         const COLS = [
-            'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual',
+            'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual', 'caixa_saidas',
             'config_negocio', 'agendamentos', 'estoque_produtos', 'equipe_membros', 
             'fidelidade_config', 'vistorias_pedidos', 'usuarios'
         ];
@@ -260,6 +261,26 @@ const EmpresaService = {
             await setDoc(doc(db, 'empresas', empresaId, 'dados', 'usuarios'), {
                 data: JSON.stringify(usersData)
             });
+
+            // 4. Pre-inicializar coleções limpas e isoladas no Firestore para a nova empresa
+            const emptyCollections = [
+                { key: 'clientes', data: '[]' },
+                { key: 'servicos', data: '[]' },
+                { key: 'pedidos', data: '[]' },
+                { key: 'caixas_fechados', data: '[]' },
+                { key: 'caixa_atual', data: '{}' },
+                { key: 'caixa_saidas', data: '[]' },
+                { key: 'agendamentos', data: '[]' },
+                { key: 'estoque_produtos', data: '[]' },
+                { key: 'equipe_membros', data: '[]' },
+                { key: 'fidelidade_config', data: '{}' },
+                { key: 'vistorias_pedidos', data: '{}' }
+            ];
+            for (const col of emptyCollections) {
+                await setDoc(doc(db, 'empresas', empresaId, 'dados', col.key), {
+                    data: col.data
+                }).catch(() => {});
+            }
         }
 
         // 4. Salvar localmente

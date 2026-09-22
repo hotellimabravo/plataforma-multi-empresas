@@ -209,6 +209,12 @@ const AuthService = {
                     if (data.token) {
                         localStorage.setItem('session_token', data.token);
                     }
+                    const targetEmpresa = data.user.empresaId || activeEmpresa;
+                    const prevTenant = localStorage.getItem('current_tenant_session');
+                    if (prevTenant !== targetEmpresa) {
+                        this.limparCacheTenantLocal();
+                        localStorage.setItem('current_tenant_session', targetEmpresa);
+                    }
                     localStorage.setItem('logged_in_user', JSON.stringify(data.user));
                     if (window.FirebaseSync) window.FirebaseSync.start();
                     return true;
@@ -233,6 +239,11 @@ const AuthService = {
                 isMaster: true, 
                 empresaId: activeEmpresa 
             };
+            const prevTenant = localStorage.getItem('current_tenant_session');
+            if (prevTenant !== activeEmpresa) {
+                this.limparCacheTenantLocal();
+                localStorage.setItem('current_tenant_session', activeEmpresa);
+            }
             localStorage.setItem('logged_in_user', JSON.stringify(masterData));
             if (window.FirebaseSync) window.FirebaseSync.start();
             return true;
@@ -273,12 +284,18 @@ const AuthService = {
                 }
 
                 if (match) {
+                    const targetEmpresa = u.empresaId || activeEmpresa;
+                    const prevTenant = localStorage.getItem('current_tenant_session');
+                    if (prevTenant !== targetEmpresa) {
+                        this.limparCacheTenantLocal();
+                        localStorage.setItem('current_tenant_session', targetEmpresa);
+                    }
                     const sessionData = {
                         id: u.id || usernameNormalized,
                         nome: u.nome || u.username,
                         username: usernameNormalized,
                         isMaster: !!u.isMaster,
-                        empresaId: u.empresaId || activeEmpresa,
+                        empresaId: targetEmpresa,
                         permissoes: u.permissoes || []
                     };
                     localStorage.setItem('logged_in_user', JSON.stringify(sessionData));
@@ -291,9 +308,20 @@ const AuthService = {
         return false;
     },
 
+    limparCacheTenantLocal() {
+        const COLS = [
+            'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual', 'caixa_saidas',
+            'config_negocio', 'agendamentos', 'estoque_produtos', 'equipe_membros', 
+            'fidelidade_config', 'vistorias_pedidos', 'usuarios'
+        ];
+        COLS.forEach(key => localStorage.removeItem(key));
+    },
+
     async logout() {
+        this.limparCacheTenantLocal();
         localStorage.removeItem('logged_in_user');
         localStorage.removeItem('session_token');
+        localStorage.removeItem('current_tenant_session');
         if (window.FirebaseSync) window.FirebaseSync.stop();
         try {
             if (auth) await fbSignOut(auth);

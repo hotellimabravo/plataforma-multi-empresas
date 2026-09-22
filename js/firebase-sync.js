@@ -1,13 +1,15 @@
 import { db, doc, setDoc, getDoc, onSnapshot } from './firebase-init.js';
 
 const COLLECTIONS = [
-    'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual',
+    'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual', 'caixa_saidas',
     'config_negocio', 'agendamentos', 'estoque_produtos', 'equipe_membros', 
     'fidelidade_config', 'vistorias_pedidos', 'usuarios'
 ];
 
 let isSyncing = false;
 let syncEnabled = false;
+let activeUnsubscribers = [];
+let lastSyncTenantId = null;
 let lastSyncTime = null;
 let lastPingTime = null;
 let connectionState = navigator.onLine ? 'conectado' : 'inativa';
@@ -42,7 +44,7 @@ localStorage.setItem = function(key, value) {
     if (syncEnabled && !isSyncing && COLLECTIONS.includes(key)) {
         const user = window.AuthService ? window.AuthService.getCurrentUser() : null;
         if (user && user.empresaId && db) {
-            // Push to Firestore
+            // Push strictly to active tenant's document
             try {
                 const docRef = doc(db, 'empresas', user.empresaId, 'dados', key);
                 setDoc(docRef, { data: value })
@@ -77,6 +79,22 @@ const FirebaseSync = {
             return;
         }
 
+        // Cancelar listeners ativos anteriores para evitar interferência entre empresas
+        activeUnsubscribers.forEach(unsub => {
+            try {
+                if (typeof unsub === 'function') unsub();
+            } catch (e) {}
+        });
+        activeUnsubscribers = [];
+
+        // Se a empresa mudou em relação à sincronização anterior, limpar cache local residual
+        if (lastSyncTenantId && lastSyncTenantId !== user.empresaId) {
+            COLLECTIONS.forEach(k => {
+                originalSetItem(k, (k === 'config_negocio' || k === 'caixa_atual' || k === 'fidelidade_config' || k === 'vistorias_pedidos') ? '{}' : '[]');
+            });
+        }
+        lastSyncTenantId = user.empresaId;
+
         syncEnabled = true;
         if (!navigator.onLine) {
             connectionState = 'inativa';
@@ -88,7 +106,7 @@ const FirebaseSync = {
         COLLECTIONS.forEach(key => {
             try {
                 const docRef = doc(db, 'empresas', user.empresaId, 'dados', key);
-                onSnapshot(docRef, (snapshot) => {
+                const unsub = onSnapshot(docRef, (snapshot) => {
                     connectionState = 'conectado';
                     lastSyncTime = new Date();
                     lastError = null;
@@ -106,11 +124,13 @@ const FirebaseSync = {
                             window.dispatchEvent(new CustomEvent('cloudDataChanged', { detail: key }));
                         }
                     } else {
-                        // Seed initial data if local storage has it
-                        const localData = localStorage.getItem(key);
-                        if (localData && localData !== '[]' && localData !== '{}' && localData.trim() !== '') {
-                            setDoc(docRef, { data: localData }).catch(() => {});
-                        }
+                        // Isolamento garantido: inicializa limpo e vazio para a nova empresa sem vazar dados
+                        const defaultVal = (key === 'config_negocio' || key === 'caixa_atual' || key === 'fidelidade_config' || key === 'vistorias_pedidos') ? '{}' : '[]';
+                        isSyncing = true;
+                        originalSetItem(key, defaultVal);
+                        isSyncing = false;
+                        setDoc(docRef, { data: defaultVal }).catch(() => {});
+                        window.dispatchEvent(new CustomEvent('cloudDataChanged', { detail: key }));
                     }
                 }, (error) => {
                     connectionState = 'inativa';
@@ -118,6 +138,8 @@ const FirebaseSync = {
                     emitirMudancaStatus();
                     console.warn(`Aviso de conexão para ${key}:`, error ? (error.message || String(error)) : '');
                 });
+
+                activeUnsubscribers.push(unsub);
             } catch (err) {
                 connectionState = 'inativa';
                 lastError = err ? (err.message || String(err)) : 'Erro ao inicializar listener';
@@ -127,6 +149,12 @@ const FirebaseSync = {
         });
     },
     stop: function() {
+        activeUnsubscribers.forEach(unsub => {
+            try {
+                if (typeof unsub === 'function') unsub();
+            } catch (e) {}
+        });
+        activeUnsubscribers = [];
         syncEnabled = false;
     },
     getStatus: function() {
