@@ -1,4 +1,4 @@
-import { db, doc, setDoc, onSnapshot } from './firebase-init.js';
+import { db, doc, setDoc, getDoc, onSnapshot } from './firebase-init.js';
 
 const COLLECTIONS = [
     'clientes', 'servicos', 'pedidos', 'caixas_fechados', 'caixa_atual',
@@ -8,6 +8,32 @@ const COLLECTIONS = [
 
 let isSyncing = false;
 let syncEnabled = false;
+let lastSyncTime = null;
+let lastPingTime = null;
+let connectionState = navigator.onLine ? 'conectado' : 'inativa';
+let lastError = null;
+
+function emitirMudancaStatus() {
+    window.dispatchEvent(new CustomEvent('firebaseStatusChanged', {
+        detail: FirebaseSync.getStatus()
+    }));
+}
+
+// Monitora conectividade de rede do navegador
+window.addEventListener('online', () => {
+    connectionState = 'conectado';
+    lastError = null;
+    emitirMudancaStatus();
+    if (FirebaseSync.start) {
+        FirebaseSync.start();
+    }
+});
+
+window.addEventListener('offline', () => {
+    connectionState = 'inativa';
+    lastError = 'Sem conexão com a internet (Modo Offline).';
+    emitirMudancaStatus();
+});
 
 const originalSetItem = localStorage.setItem.bind(localStorage);
 
@@ -19,8 +45,23 @@ localStorage.setItem = function(key, value) {
             // Push to Firestore
             try {
                 const docRef = doc(db, 'empresas', user.empresaId, 'dados', key);
-                setDoc(docRef, { data: value }).catch(err => console.warn('Erro ao sincronizar com nuvem:', err ? (err.message || String(err)) : ''));
+                setDoc(docRef, { data: value })
+                    .then(() => {
+                        connectionState = 'conectado';
+                        lastSyncTime = new Date();
+                        lastError = null;
+                        emitirMudancaStatus();
+                    })
+                    .catch(err => {
+                        connectionState = 'inativa';
+                        lastError = err ? (err.message || String(err)) : 'Erro ao sincronizar';
+                        emitirMudancaStatus();
+                        console.warn('Erro ao sincronizar com nuvem:', err ? (err.message || String(err)) : '');
+                    });
             } catch (err) {
+                connectionState = 'inativa';
+                lastError = err ? (err.message || String(err)) : 'Erro no setDoc';
+                emitirMudancaStatus();
                 console.warn('Erro no setDoc:', err ? (err.message || String(err)) : '');
             }
         }
@@ -30,14 +71,29 @@ localStorage.setItem = function(key, value) {
 const FirebaseSync = {
     start: function() {
         const user = window.AuthService ? window.AuthService.getCurrentUser() : null;
-        if (!user || !user.empresaId || !db) return;
+        if (!user || !user.empresaId || !db) {
+            connectionState = !navigator.onLine ? 'inativa' : 'conectado';
+            emitirMudancaStatus();
+            return;
+        }
 
         syncEnabled = true;
+        if (!navigator.onLine) {
+            connectionState = 'inativa';
+            lastError = 'Navegador desconectado da rede.';
+            emitirMudancaStatus();
+            return;
+        }
 
         COLLECTIONS.forEach(key => {
             try {
                 const docRef = doc(db, 'empresas', user.empresaId, 'dados', key);
                 onSnapshot(docRef, (snapshot) => {
+                    connectionState = 'conectado';
+                    lastSyncTime = new Date();
+                    lastError = null;
+                    emitirMudancaStatus();
+
                     if (snapshot.exists()) {
                         const cloudData = snapshot.data().data;
                         const localData = localStorage.getItem(key);
@@ -57,15 +113,87 @@ const FirebaseSync = {
                         }
                     }
                 }, (error) => {
+                    connectionState = 'inativa';
+                    lastError = error ? (error.message || String(error)) : 'Falha no canal de sincronização';
+                    emitirMudancaStatus();
                     console.warn(`Aviso de conexão para ${key}:`, error ? (error.message || String(error)) : '');
                 });
             } catch (err) {
+                connectionState = 'inativa';
+                lastError = err ? (err.message || String(err)) : 'Erro ao inicializar listener';
+                emitirMudancaStatus();
                 console.warn(`Erro ao iniciar listener para ${key}:`, err ? (err.message || String(err)) : '');
             }
         });
     },
     stop: function() {
         syncEnabled = false;
+    },
+    getStatus: function() {
+        const user = window.AuthService ? window.AuthService.getCurrentUser() : null;
+        const isOnline = navigator.onLine;
+        const estaConectado = isOnline && connectionState === 'conectado';
+
+        return {
+            status: estaConectado ? 'conectado' : 'inativa',
+            statusTexto: estaConectado ? 'Conectado' : 'Inativa ou desconectado',
+            isOnline: isOnline,
+            syncEnabled: syncEnabled,
+            lastSyncTime: lastSyncTime,
+            lastPingTime: lastPingTime,
+            lastError: lastError,
+            empresaId: user?.empresaId || 'padrao',
+            empresaNome: user?.empresaNome || 'Estabelecimento Ativo',
+            dbId: 'ai-studio-lavajatodanilode-e261df4e-97bf-4fcf-8c9f-056d118147ca'
+        };
+    },
+    testarConexao: async function() {
+        if (!navigator.onLine) {
+            connectionState = 'inativa';
+            lastError = 'Sem conexão com a internet.';
+            emitirMudancaStatus();
+            return {
+                sucesso: false,
+                status: 'inativa',
+                statusTexto: 'Inativa ou desconectado',
+                mensagem: 'Seu dispositivo está sem sinal de internet no momento.'
+            };
+        }
+
+        const user = window.AuthService ? window.AuthService.getCurrentUser() : null;
+        const empresaId = user?.empresaId || 'padrao';
+        const inicio = performance.now();
+
+        try {
+            if (!db) throw new Error('Instância do Firestore não inicializada');
+            const docRef = doc(db, 'empresas', empresaId, 'dados', 'config_negocio');
+            await getDoc(docRef);
+            const latencia = Math.round(performance.now() - inicio);
+
+            connectionState = 'conectado';
+            lastPingTime = new Date();
+            lastError = null;
+            emitirMudancaStatus();
+
+            return {
+                sucesso: true,
+                status: 'conectado',
+                statusTexto: 'Conectado',
+                latenciaMs: latencia,
+                mensagem: `Conexão bem-sucedida com o Firebase (${latencia}ms). Servidor ativo e sincronizado.`
+            };
+        } catch (err) {
+            connectionState = 'inativa';
+            lastError = err ? (err.message || String(err)) : 'Falha ao comunicar com Firebase';
+            emitirMudancaStatus();
+
+            return {
+                sucesso: false,
+                status: 'inativa',
+                statusTexto: 'Inativa ou desconectado',
+                mensagem: 'Não foi possível alcançar o servidor do banco de dados na nuvem.'
+            };
+        }
     }
 };
 

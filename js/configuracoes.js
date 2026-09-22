@@ -1,15 +1,15 @@
 // ==========================================================================
-// Lógica da Página de Configurações, Negócio e Gerenciamento de Database Excel
+// Lógica da Página de Configurações, Negócio, Status Firebase e Backups JSON
 // ==========================================================================
 
-let arquivoExcelSelecionado = null;
+let arquivoJSONSelecionado = null;
 
 document.addEventListener('DOMContentLoaded', () => {
 	carregarFormularioNegocio();
 	atualizarResumoEstatisticas();
-	configurarDropzone();
+	configurarDropzoneJSON();
 	mascararCamposNegocio();
-	inicializarGoogleDriveUI();
+	inicializarStatusFirebaseUI();
 
 	// Habilita aba exclusiva do Master se for administrador
 	const user = window.AuthService ? window.AuthService.getCurrentUser() : null;
@@ -54,6 +54,7 @@ function alternarAbaConfig(aba) {
 		if (tabDatabase) tabDatabase.classList.add('active');
 		if (conteudoDatabase) conteudoDatabase.style.display = 'block';
 		atualizarResumoEstatisticas();
+		atualizarStatusFirebaseUI();
 	} else if (aba === 'usuarios') {
 		if (tabUsuarios) tabUsuarios.classList.add('active');
 		if (conteudoUsuarios) conteudoUsuarios.style.display = 'block';
@@ -282,9 +283,21 @@ function salvarConfiguracaoNegocio(e) {
 	atualizarPreviewCabecalho();
 }
 
+// ==========================================================================
+// ABA BANCO DE DADOS: DIAGNÓSTICO, STATUS FIREBASE E BACKUPS JSON
+// ==========================================================================
+
 // Atualizar diagnóstico da base em tela
 function atualizarResumoEstatisticas() {
-	const stats = DatabaseExcelService.getEstatisticasAtuais();
+	const stats = (window.BackupService && typeof window.BackupService.getEstatisticasAtuais === 'function')
+		? window.BackupService.getEstatisticasAtuais()
+		: {
+			totalClientes: (JSON.parse(localStorage.getItem('clientes') || '[]')).length,
+			totalServicos: (JSON.parse(localStorage.getItem('servicos') || '[]')).length,
+			totalPedidos: (JSON.parse(localStorage.getItem('pedidos') || '[]')).length,
+			totalCaixas: (JSON.parse(localStorage.getItem('caixas_fechados') || '[]')).length,
+			infoBackup: JSON.parse(localStorage.getItem('backup_json_info') || 'null')
+		};
 
 	const elClientes = document.getElementById('dbTotalClientes');
 	const elServicos = document.getElementById('dbTotalServicos');
@@ -299,39 +312,285 @@ function atualizarResumoEstatisticas() {
 	if (elCaixas) elCaixas.textContent = stats.totalCaixas;
 
 	if (elOrigem) {
-		if (stats.infoDb && stats.infoDb.nomeArquivo) {
-			const dataFormatada = new Date(stats.infoDb.dataImportacao).toLocaleString('pt-BR');
+		if (stats.infoBackup && stats.infoBackup.nomeArquivo) {
+			const dataFormatada = new Date(stats.infoBackup.dataImportacao).toLocaleString('pt-BR');
 			elOrigem.innerHTML = `
-				📁 <strong>Planilha de Origem Ativa:</strong> ${stats.infoDb.nomeArquivo} &bull; 
-				Importada em: <strong>${dataFormatada}</strong> &bull; 
-				Tamanho: <strong>${Math.round(stats.infoDb.tamanhoBytes / 1024)} KB</strong>
+				📁 <strong>Backup JSON Vinculado:</strong> ${stats.infoBackup.nomeArquivo} &bull; 
+				Restaurado em: <strong>${dataFormatada}</strong> &bull; 
+				Tamanho: <strong>${Math.round((stats.infoBackup.tamanhoBytes || 0) / 1024)} KB</strong>
 			`;
 			if (elBadgeOrigem) {
-				elBadgeOrigem.textContent = 'Planilha Vinculada: ' + stats.infoDb.nomeArquivo;
+				elBadgeOrigem.textContent = 'Backup Restaurado: ' + stats.infoBackup.nomeArquivo;
 				elBadgeOrigem.className = 'badge badge-primary';
 			}
 		} else {
 			elOrigem.innerHTML = `
-				💾 <strong>Base Operante:</strong> Armazenamento local seguro. Nenhuma planilha externa foi importada recentemente.
+				💾 <strong>Base Operante:</strong> Armazenamento local persistente seguro sincronizado com a nuvem Firebase.
 			`;
 			if (elBadgeOrigem) {
-				elBadgeOrigem.textContent = 'Base Local Ativa';
+				elBadgeOrigem.textContent = 'Base Ativa e Sincronizada';
 				elBadgeOrigem.className = 'badge badge-success';
 			}
 		}
 	}
 
 	// Atualizar texto de último backup exportado
-	const txtBackup = document.getElementById('txtUltimoBackup');
-	if (txtBackup && stats.infoDb && stats.infoDb.ultimoBackupExportado) {
-		const dataBackup = new Date(stats.infoDb.ultimoBackupExportado).toLocaleString('pt-BR');
-		txtBackup.innerHTML = `Último backup baixado: <strong>${dataBackup}</strong> (${stats.infoDb.ultimoArquivoExportado || 'xlsx'})`;
+	const txtBackup = document.getElementById('txtUltimoBackupJSON');
+	if (txtBackup) {
+		const ultExp = localStorage.getItem('ultimo_backup_json_exportado');
+		if (ultExp) {
+			const dataBackup = new Date(ultExp).toLocaleString('pt-BR');
+			const nomeArq = localStorage.getItem('ultimo_arquivo_json_exportado') || 'backup.json';
+			txtBackup.innerHTML = `Último backup baixado: <strong>${dataBackup}</strong> (${nomeArq})`;
+		} else {
+			txtBackup.textContent = 'Nenhum backup baixado nesta sessão.';
+		}
 	}
 }
 
-// Configuração do Drag and Drop
-function configurarDropzone() {
-	const dropzone = document.getElementById('dropzoneExcel');
+// --------------------------------------------------------------------------
+// LÓGICA DO QUADRO DE STATUS DO SERVIDOR FIREBASE
+// --------------------------------------------------------------------------
+
+function inicializarStatusFirebaseUI() {
+	atualizarStatusFirebaseUI();
+
+	// Ouve eventos disparados pelo FirebaseSync
+	window.addEventListener('firebaseStatusChanged', (e) => {
+		atualizarStatusFirebaseUI(e.detail);
+	});
+
+	// Ouve eventos de rede do navegador
+	window.addEventListener('online', () => {
+		atualizarStatusFirebaseUI();
+	});
+
+	window.addEventListener('offline', () => {
+		atualizarStatusFirebaseUI();
+	});
+}
+
+function atualizarStatusFirebaseUI(statusCustom) {
+	const status = statusCustom || (window.FirebaseSync ? window.FirebaseSync.getStatus() : {
+		status: navigator.onLine ? 'conectado' : 'inativa',
+		statusTexto: navigator.onLine ? 'Conectado' : 'Inativa ou desconectado',
+		isOnline: navigator.onLine,
+		syncEnabled: true,
+		lastSyncTime: null,
+		lastPingTime: null,
+		lastError: null,
+		empresaId: 'padrao',
+		empresaNome: 'Estabelecimento Ativo',
+		dbId: 'ai-studio-lavajatodanilode-e261df4e-97bf-4fcf-8c9f-056d118147ca'
+	});
+
+	const estaConectado = status.status === 'conectado' && navigator.onLine;
+
+	// 1. Atualizar Badge Superior
+	const badge = document.getElementById('badgeStatusFirebase');
+	if (badge) {
+		if (estaConectado) {
+			badge.textContent = '🟢 Conectado';
+			badge.style.background = '#dcfce7';
+			badge.style.color = '#15803d';
+			badge.style.border = '1px solid #86efac';
+		} else {
+			badge.textContent = '🔴 Inativa ou desconectado';
+			badge.style.background = '#fee2e2';
+			badge.style.color = '#b91c1c';
+			badge.style.border = '1px solid #fca5a5';
+		}
+	}
+
+	// 2. Atualizar Banner Principal
+	const banner = document.getElementById('bannerStatusFirebase');
+	const icone = document.getElementById('iconeStatusFirebase');
+	const tit = document.getElementById('txtStatusFirebaseTitulo');
+	const desc = document.getElementById('txtStatusFirebaseDesc');
+	const modo = document.getElementById('txtModoOperacao');
+
+	if (tit) {
+		tit.textContent = estaConectado 
+			? 'Status do Banco de Dados: Conectado' 
+			: 'Status do Banco de Dados: Inativa ou desconectado';
+	}
+
+	if (banner) {
+		if (estaConectado) {
+			banner.style.background = '#f0fdf4';
+			banner.style.borderColor = '#bbf7d0';
+			banner.style.color = '#166534';
+			if (icone) icone.textContent = '☁️';
+			if (modo) {
+				modo.textContent = 'Servidor Online';
+				modo.style.color = '#15803d';
+				modo.style.background = '#dcfce7';
+			}
+			if (desc) {
+				desc.textContent = 'Seus dados estão sendo sincronizados e salvos com segurança em tempo real no servidor Firebase Firestore. Qualquer cliente cadastrado, serviço alterado ou ordem de serviço aberta fica imediatamente online.';
+			}
+		} else {
+			banner.style.background = '#fef2f2';
+			banner.style.borderColor = '#fecaca';
+			banner.style.color = '#991b1b';
+			if (icone) icone.textContent = '⚠️';
+			if (modo) {
+				modo.textContent = 'Servidor Desconectado';
+				modo.style.color = '#b91c1c';
+				modo.style.background = '#fee2e2';
+			}
+			if (desc) {
+				desc.textContent = status.lastError || 'O banco de dados na nuvem está temporariamente inativo ou desconectado. O sistema continua operando e gravando localmente; assim que a conexão retornar, tudo será sincronizado com a nuvem automaticamente.';
+			}
+		}
+	}
+
+	// 3. Atualizar Cards de Informações
+	const txtDbId = document.getElementById('txtFirebaseDbId');
+	if (txtDbId) {
+		txtDbId.textContent = 'Base: ' + (status.dbId || 'Firestore Default');
+	}
+
+	const txtEmpresaNome = document.getElementById('txtFirebaseEmpresaNome');
+	const txtEmpresaId = document.getElementById('txtFirebaseEmpresaId');
+	const user = window.AuthService ? window.AuthService.getCurrentUser() : null;
+	if (txtEmpresaNome) {
+		txtEmpresaNome.textContent = user?.empresaNome || status.empresaNome || 'Estabelecimento Ativo';
+	}
+	if (txtEmpresaId) {
+		txtEmpresaId.textContent = 'ID: ' + (user?.empresaId || status.empresaId || 'padrao');
+	}
+
+	const txtUltimaSync = document.getElementById('txtFirebaseUltimaSync');
+	const txtStatusSync = document.getElementById('txtFirebaseStatusSync');
+	if (txtUltimaSync) {
+		if (status.lastSyncTime) {
+			const dataSync = new Date(status.lastSyncTime);
+			txtUltimaSync.textContent = dataSync.toLocaleTimeString('pt-BR');
+		} else if (estaConectado) {
+			txtUltimaSync.textContent = 'Ativo e sincronizado';
+		} else {
+			txtUltimaSync.textContent = 'Aguardando reconexão';
+		}
+	}
+	if (txtStatusSync) {
+		txtStatusSync.textContent = estaConectado ? '● Canal em tempo real aberto' : '○ Canal inativo / em espera';
+		txtStatusSync.style.color = estaConectado ? '#16a34a' : '#dc2626';
+	}
+
+	const txtSinalRede = document.getElementById('txtFirebaseSinalRede');
+	const txtLatencia = document.getElementById('txtFirebaseLatencia');
+	if (txtSinalRede) {
+		txtSinalRede.textContent = navigator.onLine ? '🌐 Internet Ativa' : '❌ Sem Internet';
+		txtSinalRede.style.color = navigator.onLine ? 'var(--text-main)' : '#dc2626';
+	}
+	if (txtLatencia) {
+		if (status.latenciaMs) {
+			txtLatencia.textContent = `Latência: ${status.latenciaMs}ms`;
+		} else if (status.lastPingTime) {
+			txtLatencia.textContent = `Último teste: ${new Date(status.lastPingTime).toLocaleTimeString('pt-BR')}`;
+		} else {
+			txtLatencia.textContent = estaConectado ? 'Latência: normal' : 'Latência: indisponível';
+		}
+	}
+}
+
+async function testarConexaoFirebaseUI() {
+	const btn = document.getElementById('btnTestarConexaoFirebase');
+	if (btn) {
+		btn.disabled = true;
+		btn.textContent = '⏳ Testando conexão...';
+	}
+
+	try {
+		if (window.FirebaseSync && typeof window.FirebaseSync.testarConexao === 'function') {
+			const res = await window.FirebaseSync.testarConexao();
+			if (res.sucesso) {
+				if (window.UI) window.UI.toast(`Status do Banco de Dados: Conectado (${res.latenciaMs}ms)`, 'success');
+				else alert(`Status do Banco de Dados: Conectado (${res.latenciaMs}ms)`);
+			} else {
+				if (window.UI) window.UI.toast(`Status do Banco de Dados: Inativa ou desconectado. ${res.mensagem}`, 'error');
+				else alert(`Status do Banco de Dados: Inativa ou desconectado. ${res.mensagem}`);
+			}
+		} else {
+			const isOnline = navigator.onLine;
+			if (isOnline) {
+				if (window.UI) window.UI.toast('Status do Banco de Dados: Conectado', 'success');
+			} else {
+				if (window.UI) window.UI.toast('Status do Banco de Dados: Inativa ou desconectado', 'error');
+			}
+		}
+	} catch (e) {
+		console.warn('Erro ao testar conexão:', e);
+		if (window.UI) window.UI.toast('Status do Banco de Dados: Inativa ou desconectado', 'error');
+	} finally {
+		if (btn) {
+			btn.disabled = false;
+			btn.textContent = '🔄 Testar Conexão com Firebase';
+		}
+		atualizarStatusFirebaseUI();
+	}
+}
+
+function forcarSincronizacaoFirebaseUI() {
+	const btn = document.getElementById('btnSincronizarFirebase');
+	if (btn) {
+		btn.disabled = true;
+		btn.textContent = '⏳ Sincronizando...';
+	}
+
+	if (window.FirebaseSync && typeof window.FirebaseSync.start === 'function') {
+		window.FirebaseSync.start();
+	}
+
+	setTimeout(() => {
+		if (btn) {
+			btn.disabled = false;
+			btn.textContent = '⚡ Forçar Sincronização Agora';
+		}
+		if (window.UI) window.UI.toast('Solicitação de sincronização enviada para a nuvem!', 'success');
+		atualizarStatusFirebaseUI();
+	}, 800);
+}
+
+// --------------------------------------------------------------------------
+// LÓGICA DE BACKUP E RESTAURAÇÃO EM FORMATO JSON
+// --------------------------------------------------------------------------
+
+function executarExportacaoJSON() {
+	if (!window.BackupService) {
+		if (window.UI) window.UI.toast('Módulo de backup não encontrado.', 'error');
+		return;
+	}
+
+	const btn = document.getElementById('btnExportarBaseJSON');
+	if (btn) {
+		btn.disabled = true;
+		btn.innerHTML = '⏳ Gerando Backup JSON...';
+	}
+
+	try {
+		const res = window.BackupService.exportarBackupJSON();
+		if (window.UI) {
+			window.UI.toast(`Backup baixado com sucesso: ${res.nomeArquivo} (${res.tamanhoFormatado})`, 'success');
+		} else {
+			alert(`Backup baixado com sucesso: ${res.nomeArquivo}`);
+		}
+		atualizarResumoEstatisticas();
+	} catch (err) {
+		console.error('Falha ao exportar backup JSON:', err);
+		if (window.UI) window.UI.toast('Erro ao exportar backup: ' + err.message, 'error');
+		else alert('Erro ao exportar backup: ' + err.message);
+	} finally {
+		if (btn) {
+			btn.disabled = false;
+			btn.innerHTML = '<span>📥 Baixar Dados em Formato JSON (.json)</span>';
+		}
+	}
+}
+
+function configurarDropzoneJSON() {
+	const dropzone = document.getElementById('dropzoneJSON');
 	if (!dropzone) return;
 
 	['dragenter', 'dragover'].forEach(eventName => {
@@ -354,36 +613,36 @@ function configurarDropzone() {
 		const dt = e.dataTransfer;
 		const files = dt.files;
 		if (files && files.length > 0) {
-			processarArquivo(files[0]);
+			processarArquivoJSON(files[0]);
 		}
 	});
 }
 
-function tratarArquivoSelecionado(event) {
+function tratarArquivoJSONSelecionado(event) {
 	const file = event.target.files[0];
 	if (file) {
-		processarArquivo(file);
+		processarArquivoJSON(file);
 	}
 }
 
-function processarArquivo(file) {
-	if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-		if (window.UI) window.UI.toast('Por favor, selecione um arquivo no formato Excel (.xlsx ou .xls).', 'warning');
-		else alert('Por favor, selecione um arquivo de planilha no formato Excel (.xlsx ou .xls).');
+function processarArquivoJSON(file) {
+	if (!file.name.toLowerCase().endsWith('.json')) {
+		if (window.UI) window.UI.toast('Por favor, selecione um arquivo no formato JSON (.json).', 'warning');
+		else alert('Por favor, selecione um arquivo no formato JSON (.json).');
 		return;
 	}
 
-	arquivoExcelSelecionado = file;
-	const dropzone = document.getElementById('dropzoneExcel');
-	const btnConfirmar = document.getElementById('btnConfirmarImportacao');
+	arquivoJSONSelecionado = file;
+	const title = document.getElementById('dropzoneJSONTitle');
+	const desc = document.getElementById('dropzoneJSONDesc');
+	const btnConfirmar = document.getElementById('btnConfirmarImportacaoJSON');
 
-	if (dropzone) {
-		dropzone.innerHTML = `
-			<span class="excel-dropzone-icon">📄</span>
-			<span class="excel-dropzone-title" style="color: var(--primary);">${file.name}</span>
-			<span class="excel-dropzone-desc">Arquivo pronto para ser carregado. Tamanho: ${(file.size / 1024).toFixed(1)} KB. Clique novamente se desejar trocar de arquivo.</span>
-			<input type="file" id="inputArquivoExcel" accept=".xlsx, .xls" style="display: none;" onchange="tratarArquivoSelecionado(event)" />
-		`;
+	if (title) {
+		title.textContent = `📄 ${file.name}`;
+		title.style.color = 'var(--primary)';
+	}
+	if (desc) {
+		desc.textContent = `Arquivo selecionado (${(file.size / 1024).toFixed(1)} KB). Pronto para restaurar. Clique para escolher outro.`;
 	}
 
 	if (btnConfirmar) {
@@ -392,14 +651,19 @@ function processarArquivo(file) {
 	}
 }
 
-async function executarImportacao() {
-	if (!arquivoExcelSelecionado) {
-		if (window.UI) window.UI.toast('Selecione primeiro uma planilha Excel para carregar.', 'warning');
-		else alert('Selecione primeiro uma planilha Excel para carregar.');
+async function executarImportacaoJSON() {
+	if (!arquivoJSONSelecionado) {
+		if (window.UI) window.UI.toast('Selecione primeiro um arquivo .json para restaurar.', 'warning');
+		else alert('Selecione primeiro um arquivo .json para restaurar.');
 		return;
 	}
 
-	const modoRadios = document.getElementsByName('modoImportacao');
+	if (!window.BackupService) {
+		if (window.UI) window.UI.toast('Módulo de backup não disponível.', 'error');
+		return;
+	}
+
+	const modoRadios = document.getElementsByName('modoImportacaoJSON');
 	let modoEscolhido = 'substituir';
 	for (const r of modoRadios) {
 		if (r.checked) {
@@ -408,16 +672,16 @@ async function executarImportacao() {
 		}
 	}
 
-	const btnConfirmar = document.getElementById('btnConfirmarImportacao');
-	const resultadoDiv = document.getElementById('resultadoImportacao');
+	const btnConfirmar = document.getElementById('btnConfirmarImportacaoJSON');
+	const resultadoDiv = document.getElementById('resultadoImportacaoJSON');
 
 	if (btnConfirmar) {
 		btnConfirmar.disabled = true;
-		btnConfirmar.textContent = '⏳ Lendo e carregando planilha...';
+		btnConfirmar.textContent = '⏳ Lendo e restaurando backup JSON...';
 	}
 
 	try {
-		const res = await DatabaseExcelService.importarArquivoExcel(arquivoExcelSelecionado, modoEscolhido);
+		const res = await window.BackupService.restaurarBackupJSON(arquivoJSONSelecionado, modoEscolhido);
 
 		if (resultadoDiv) {
 			resultadoDiv.style.display = 'block';
@@ -428,28 +692,35 @@ async function executarImportacao() {
 			resultadoDiv.innerHTML = `
 				<span class="db-status-icon">✅</span>
 				<div class="db-status-text">
-					<strong>Planilha Carregada com Sucesso como Base Ativa!</strong>
-					<p style="color: #1d4ed8;">
-						Foram importados: <strong>${res.clientesLidos}</strong> clientes, 
-						<strong>${res.servicosLidos}</strong> serviços, 
-						<strong>${res.pedidosLidos}</strong> ordens de serviço e 
-						<strong>${res.caixasLidos}</strong> registros do livro caixa.
+					<strong>Backup Restaurado com Sucesso!</strong>
+					<p style="color: #1d4ed8; margin-top: 4px;">
+						Foram restaurados: <strong>${res.clientes}</strong> clientes, 
+						<strong>${res.servicos}</strong> serviços, 
+						<strong>${res.pedidos}</strong> ordens de serviço e 
+						<strong>${res.caixas}</strong> movimentações de caixa.
 					</p>
 				</div>
 			`;
 		}
 
+		if (window.UI) {
+			window.UI.toast('Backup JSON restaurado com sucesso!', 'success');
+		}
+
 		atualizarResumoEstatisticas();
+		if (typeof window.BrandService !== 'undefined') {
+			window.BrandService.aplicarEmTudo();
+		}
 
 		if (btnConfirmar) {
-			btnConfirmar.textContent = '✅ Planilha Aplicada!';
+			btnConfirmar.textContent = '✅ Backup Aplicado!';
 			setTimeout(() => {
 				btnConfirmar.disabled = false;
-				btnConfirmar.textContent = '🚀 Carregar Planilha Selecionada';
+				btnConfirmar.textContent = '🚀 Restaurar Backup Selecionado';
 			}, 3000);
 		}
 	} catch (err) {
-		console.error('Erro na importação:', err);
+		console.error('Erro na restauração do JSON:', err);
 		if (resultadoDiv) {
 			resultadoDiv.style.display = 'block';
 			resultadoDiv.className = 'db-status-banner';
@@ -459,8 +730,8 @@ async function executarImportacao() {
 			resultadoDiv.innerHTML = `
 				<span class="db-status-icon">⚠️</span>
 				<div class="db-status-text">
-					<strong>Erro ao carregar planilha</strong>
-					<p style="color: #b91c1c;">${err.message || 'Verifique se o arquivo é um Excel válido e possui as abas corretas.'}</p>
+					<strong>Erro ao restaurar backup</strong>
+					<p style="color: #b91c1c; margin-top: 4px;">${err.message || 'Verifique se o arquivo é um JSON de backup válido gerado pelo sistema.'}</p>
 				</div>
 			`;
 		}
@@ -469,246 +740,6 @@ async function executarImportacao() {
 			btnConfirmar.textContent = 'Tentar Novamente';
 		}
 	}
-}
-
-function executarExportacao() {
-	try {
-		const btn = document.getElementById('btnExportarBase');
-		if (btn) btn.innerHTML = '⏳ Gerando Planilha...';
-
-		const nomeArquivo = DatabaseExcelService.exportarBaseCompleta();
-
-		setTimeout(() => {
-			if (btn) btn.innerHTML = '<span>📥 Baixar Planilha Completa Atual (.xlsx)</span>';
-			atualizarResumoEstatisticas();
-		}, 800);
-	} catch (err) {
-		alert('Falha ao exportar base: ' + err.message);
-	}
-}
-
-// --------------------------------------------------------------------------
-// LÓGICA DA INTEGRAÇÃO COM O GOOGLE DRIVE
-// --------------------------------------------------------------------------
-
-function inicializarGoogleDriveUI() {
-	if (typeof GoogleDriveService === 'undefined') return;
-
-	// Inicializa silenciosamente o cliente GSI
-	GoogleDriveService.inicializar().catch(err => {
-		console.warn('GSI inicialização:', err);
-	});
-
-	// Atualiza UI com base no status salvo
-	atualizarStatusGoogleDriveUI();
-
-	// Ouvir eventos customizados de autenticação
-	window.addEventListener('gdrive-auth-changed', (e) => {
-		atualizarStatusGoogleDriveUI();
-	});
-
-	window.addEventListener('gdrive-synced', (e) => {
-		atualizarStatusGoogleDriveUI();
-	});
-}
-
-function atualizarStatusGoogleDriveUI() {
-	const conectado = typeof GoogleDriveService !== 'undefined' && GoogleDriveService.estaConectado();
-	const estadoDesconectado = document.getElementById('gdriveEstadoDesconectado');
-	const estadoConectado = document.getElementById('gdriveEstadoConectado');
-	const elUserName = document.getElementById('gdriveUserName');
-	const elUserEmail = document.getElementById('gdriveUserEmail');
-	const elUserAvatar = document.getElementById('gdriveUserAvatar');
-	const txtSync = document.getElementById('txtUltimaSyncDrive');
-
-	if (estadoDesconectado && estadoConectado) {
-		if (conectado) {
-			estadoDesconectado.style.display = 'none';
-			estadoConectado.style.display = 'inline-flex';
-
-			const email = localStorage.getItem('gdrive_usuario_email') || 'Conta Google Conectada';
-			const nome = localStorage.getItem('gdrive_usuario_nome') || 'Usuário';
-			const foto = localStorage.getItem('gdrive_usuario_foto');
-
-			if (elUserName) elUserName.textContent = nome;
-			if (elUserEmail) elUserEmail.textContent = email;
-			if (elUserAvatar) {
-				if (foto) {
-					elUserAvatar.innerHTML = `<img src="${foto}" alt="${nome}" style="width:100%;height:100%;border-radius:50%;object-fit:cover;" />`;
-				} else {
-					elUserAvatar.textContent = nome.charAt(0).toUpperCase();
-				}
-			}
-		} else {
-			estadoDesconectado.style.display = 'block';
-			estadoConectado.style.display = 'none';
-		}
-	}
-
-	if (txtSync) {
-		const ultSync = localStorage.getItem('gdrive_ultima_sync');
-		if (ultSync) {
-			const data = new Date(ultSync);
-			txtSync.textContent = `Última sincronização com Drive: ${data.toLocaleDateString('pt-BR')} às ${data.toLocaleTimeString('pt-BR')}`;
-		} else {
-			txtSync.textContent = 'Última sincronização com Drive: Nenhuma realizada ainda';
-		}
-	}
-}
-
-async function conectarGoogleDriveUI() {
-	const btn = document.getElementById('btnConectarGoogle');
-	if (btn) {
-		btn.style.opacity = '0.7';
-		btn.style.pointerEvents = 'none';
-	}
-
-	try {
-		await GoogleDriveService.conectar();
-		exibirMensagemDrive('sucesso', 'Conta Google Conectada!', 'Agora você pode salvar ou restaurar seu banco de dados diretamente no Google Drive.');
-		atualizarStatusGoogleDriveUI();
-	} catch (err) {
-		console.error('Falha ao conectar Google:', err);
-		exibirMensagemDrive('erro', 'Falha na conexão com Google', err.message || 'O fluxo de login foi cancelado ou fechado.');
-	} finally {
-		if (btn) {
-			btn.style.opacity = '1';
-			btn.style.pointerEvents = 'auto';
-		}
-	}
-}
-
-async function desconectarGoogleDriveUI() {
-	if (!confirm('Deseja desconectar sua conta Google? O sistema deixará de sincronizar com a nuvem do seu Drive.')) {
-		return;
-	}
-
-	try {
-		await GoogleDriveService.desconectar();
-		exibirMensagemDrive('aviso', 'Conta Google Desconectada', 'A sincronização com o Google Drive foi desativada. Seus dados locais permanecem intactos.');
-		atualizarStatusGoogleDriveUI();
-	} catch (err) {
-		console.error('Erro ao desconectar:', err);
-	}
-}
-
-async function executarSalvarNoDrive() {
-	if (!GoogleDriveService.estaConectado()) {
-		if (confirm('Sua conta Google ainda não está conectada. Deseja conectar agora para salvar no Google Drive?')) {
-			try {
-				await GoogleDriveService.conectar();
-			} catch (e) {
-				return;
-			}
-		} else {
-			return;
-		}
-	}
-
-	const btn = document.getElementById('btnSalvarNoDrive');
-	if (btn) {
-		btn.disabled = true;
-		btn.textContent = '⏳ Salvando no Google Drive...';
-	}
-
-	try {
-		const res = await GoogleDriveService.salvarNoDrive();
-		exibirMensagemDrive(
-			'sucesso', 
-			'Base de Dados Salva no Google Drive!', 
-			`O arquivo "database_sistema_gestao.xlsx" foi sincronizado com sucesso na sua conta em ${new Date().toLocaleTimeString('pt-BR')}.`
-		);
-		atualizarStatusGoogleDriveUI();
-		atualizarResumoEstatisticas();
-	} catch (err) {
-		console.error('Erro ao salvar no Drive:', err);
-		exibirMensagemDrive('erro', 'Erro ao salvar no Google Drive', err.message || 'Verifique sua conexão e tente novamente.');
-	} finally {
-		if (btn) {
-			btn.disabled = false;
-			btn.textContent = '☁️ Salvar no Drive Agora';
-		}
-	}
-}
-
-async function executarRestaurarDoDrive() {
-	if (!GoogleDriveService.estaConectado()) {
-		if (confirm('Sua conta Google ainda não está conectada. Deseja conectar agora para baixar os dados do seu Google Drive?')) {
-			try {
-				await GoogleDriveService.conectar();
-			} catch (e) {
-				return;
-			}
-		} else {
-			return;
-		}
-	}
-
-	if (!confirm('Atenção: Ao restaurar do Google Drive, os dados do sistema serão sincronizados com a versão salva na sua nuvem. Deseja continuar?')) {
-		return;
-	}
-
-	const btn = document.getElementById('btnRestaurarDoDrive');
-	if (btn) {
-		btn.disabled = true;
-		btn.textContent = '⏳ Baixando do Drive...';
-	}
-
-	try {
-		const res = await GoogleDriveService.restaurarDoDrive('substituir');
-		exibirMensagemDrive(
-			'sucesso', 
-			'Base Restaurada com Sucesso do Google Drive!', 
-			`Foram sincronizados: ${res.clientesLidos} clientes, ${res.servicosLidos} serviços, ${res.pedidosLidos} O.S. e ${res.caixasLidos} caixas.`
-		);
-		atualizarStatusGoogleDriveUI();
-		atualizarResumoEstatisticas();
-		if (typeof BrandService !== 'undefined') {
-			BrandService.aplicarEmTudo();
-		}
-	} catch (err) {
-		console.error('Erro ao restaurar do Drive:', err);
-		exibirMensagemDrive('erro', 'Erro ao restaurar do Google Drive', err.message || 'Certifique-se de que já salvou ao menos uma vez o arquivo no Drive.');
-	} finally {
-		if (btn) {
-			btn.disabled = false;
-			btn.textContent = '📥 Baixar & Restaurar';
-		}
-	}
-}
-
-function exibirMensagemDrive(tipo, titulo, texto) {
-	const box = document.getElementById('msgStatusDrive');
-	const icon = document.getElementById('msgStatusDriveIcon');
-	const tit = document.getElementById('msgStatusDriveTitulo');
-	const txt = document.getElementById('msgStatusDriveTexto');
-
-	if (!box) return;
-
-	box.style.display = 'flex';
-
-	if (tipo === 'sucesso') {
-		box.style.background = '#f0fdf4';
-		box.style.borderColor = '#bbf7d0';
-		box.style.color = '#166534';
-		if (icon) icon.textContent = '✅';
-		if (txt) txt.style.color = '#15803d';
-	} else if (tipo === 'erro') {
-		box.style.background = '#fef2f2';
-		box.style.borderColor = '#fecaca';
-		box.style.color = '#991b1b';
-		if (icon) icon.textContent = '⚠️';
-		if (txt) txt.style.color = '#b91c1c';
-	} else {
-		box.style.background = '#eff6ff';
-		box.style.borderColor = '#bfdbfe';
-		box.style.color = '#1e40af';
-		if (icon) icon.textContent = 'ℹ️';
-		if (txt) txt.style.color = '#1d4ed8';
-	}
-
-	if (tit) tit.textContent = titulo;
-	if (txt) txt.textContent = texto;
 }
 
 // ==========================================================================
@@ -757,8 +788,6 @@ function renderizarAbaEmpresasMaster() {
 			? `<span class="badge" style="background: #fef3c7; color: #b45309; border: 1px solid #fde68a; font-weight: 700; padding: 5px 10px;">⭐ Empresa Ativa</span>`
 			: `<button type="button" class="btn btn-sm btn-primary" onclick="alternarEmpresaDireto('${emp.id}')">⚡ Alternar Painel</button>`;
 
-		const downloadBtn = `<button type="button" class="btn btn-sm" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #334155; padding: 4px 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Baixar todos os dados desta empresa em formato JSON" onclick="baixarBackupEmpresaMaster('${emp.id}')">📥 Baixar Dados</button>`;
-
 		const deleteBtn = `<button type="button" class="btn btn-sm" style="background: #fef2f2; border: 1px solid #fca5a5; color: #dc2626; padding: 4px 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px;" title="Excluir Empresa e Apagar Todo o Banco de Dados Dela" onclick="excluirEmpresaMaster('${emp.id}')">🗑️ Excluir</button>`;
 
 		card.innerHTML = `
@@ -781,7 +810,6 @@ function renderizarAbaEmpresasMaster() {
 					${statusBtn}
 				</div>
 				<div style="display: flex; gap: 6px; align-items: center;">
-					${downloadBtn}
 					${deleteBtn}
 				</div>
 			</div>

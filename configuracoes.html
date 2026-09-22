@@ -51,7 +51,7 @@
 		<main class="container">
 			<div class="page-header">
 				<h1 class="page-title">Configurações do Sistema</h1>
-				<p class="page-subtitle">Gerencie o banco de dados local em Excel, importe/exporte dados e configure os parâmetros operacionais</p>
+				<p class="page-subtitle">Acompanhe o status do servidor Firebase em tempo real, gerencie backups em JSON e configure os parâmetros operacionais</p>
 			</div>
 
 			<div class="settings-shell" id="painelConfiguracoes">
@@ -337,104 +337,101 @@
 					</div>
 
 					<!-- ==================================================== -->
-					<!-- ABA 2: BANCO DE DADOS (DATABASE EXCEL & GOOGLE DRIVE) -->
+					<!-- ABA 2: BANCO DE DADOS (STATUS FIREBASE E BACKUP JSON) -->
 					<!-- ==================================================== -->
 					<div id="abaConteudoDatabase" style="display: none;">
 						
-						<!-- Status de Gravação em Tempo Real -->
-						<div class="db-status-banner" id="bannerStatusDb">
-							<span class="db-status-icon">🛡️</span>
-							<div class="db-status-text">
-								<strong>Gravação Local em Tempo Real: ATIVA</strong>
-								<p>A cada cliente cadastrado, serviço alterado ou O.S. aberta, os dados são salvos imediatamente na memória local persistente. Se faltar energia ou o navegador fechar, suas informações permanecem 100% seguras.</p>
-							</div>
-						</div>
-
-						<!-- Card de Hospedagem em Nuvem via Google Drive -->
-						<div class="gdrive-hero-card" style="margin-top: 18px;" id="cardGoogleDrive">
-							<div class="gdrive-hero-top">
-								<div class="gdrive-hero-title-group">
-									<h2 class="gdrive-hero-title">
-										<span>☁️ Hospedagem em Nuvem no Google Drive do Usuário</span>
-									</h2>
-									<p class="gdrive-hero-desc">
-										Guarde sua base de dados diretamente na sua conta pessoal do Google. O arquivo <code>database_sistema_gestao.xlsx</code> é mantido 100% sob seu controle, com permissão restrita e segura apenas aos arquivos do sistema.
-									</p>
-								</div>
-
-								<!-- Estado Desconectado -->
-								<div id="gdriveEstadoDesconectado">
-									<button type="button" class="gsi-material-button" id="btnConectarGoogle" onclick="conectarGoogleDriveUI()">
-										<div class="gsi-material-button-icon">
-											<svg version="1.1" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" style="display: block;">
-												<path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"></path>
-												<path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"></path>
-												<path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"></path>
-												<path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"></path>
-												<path fill="none" d="M0 0h48v48H0z"></path>
-											</svg>
-										</div>
-										<span class="gsi-material-button-contents">Conectar Google Drive</span>
-									</button>
-								</div>
-
-								<!-- Estado Conectado -->
-								<div id="gdriveEstadoConectado" style="display: none; align-items: center; gap: 12px; flex-wrap: wrap;">
-									<div class="gdrive-user-badge">
-										<div class="gdrive-user-avatar" id="gdriveUserAvatar">👤</div>
-										<div class="gdrive-user-info">
-											<span class="gdrive-user-name" id="gdriveUserName">Conectado</span>
-											<span class="gdrive-user-email" id="gdriveUserEmail">usuario@gmail.com</span>
-										</div>
-									</div>
-									<button type="button" class="btn btn-outline-danger" style="padding: 6px 12px; font-size: 0.8rem;" onclick="desconectarGoogleDriveUI()">
-										Desconectar
-									</button>
-								</div>
-							</div>
-
-							<!-- Feedback de Status de Operação do Drive -->
-							<div id="msgStatusDrive" class="db-status-banner" style="display: none; margin-bottom: 0;">
-								<span class="db-status-icon" id="msgStatusDriveIcon">☁️</span>
-								<div class="db-status-text">
-									<strong id="msgStatusDriveTitulo">Aguardando ação...</strong>
-									<p id="msgStatusDriveTexto" style="margin-top: 2px;">Detalhes da sincronização</p>
-								</div>
-							</div>
-
-							<!-- Grid com Ações de Sincronização e Restauração do Drive -->
-							<div class="gdrive-actions-grid">
-								<div class="gdrive-action-box">
-									<h4>
-										<span>⬆️ Salvar Dados no Google Drive</span>
-									</h4>
-									<p>
-										Exporta e atualiza a planilha <code>database_sistema_gestao.xlsx</code> no seu Google Drive com todos os clientes, serviços, ordens de serviço e movimentações do caixa.
-									</p>
-									<button type="button" class="btn btn-primary" id="btnSalvarNoDrive" onclick="executarSalvarNoDrive()">
-										☁️ Salvar no Drive Agora
-									</button>
-								</div>
-
-								<div class="gdrive-action-box">
-									<h4>
-										<span>⬇️ Restaurar Base do Google Drive</span>
-									</h4>
-									<p>
-										Lê o arquivo de banco de dados diretamente do seu Google Drive e sincroniza os dados para o seu sistema em caso de troca de computador ou novo dispositivo.
-									</p>
-									<div style="display: flex; gap: 8px;">
-										<button type="button" class="btn btn-secondary" id="btnRestaurarDoDrive" onclick="executarRestaurarDoDrive()" style="flex: 1;">
-											📥 Baixar & Restaurar
-										</button>
+						<!-- Quadro de Status do Servidor Firebase (Banco de Dados em Nuvem) -->
+						<div class="settings-section-card" id="cardStatusFirebase" style="border: 2px solid var(--border-color); border-radius: 12px; overflow: hidden; background: var(--bg-card);">
+							<div class="settings-section-header" style="display: flex; justify-content: space-between; align-items: center; padding-bottom: 12px; border-bottom: 1px solid var(--border-color);">
+								<div style="display: flex; align-items: center; gap: 10px;">
+									<span style="font-size: 1.6rem;">🔥</span>
+									<div>
+										<h2 class="settings-section-title" style="margin: 0; font-size: 1.15rem;">
+											Status do Servidor Firebase
+										</h2>
+										<p style="margin: 2px 0 0 0; font-size: 0.8rem; color: var(--text-muted);">
+											Monitoramento em tempo real do banco de dados na nuvem (Firestore)
+										</p>
 									</div>
 								</div>
+								<div id="containerBadgeFirebase">
+									<span class="badge" id="badgeStatusFirebase" style="font-size: 0.85rem; padding: 6px 14px; font-weight: 700; border-radius: 20px; transition: all 0.3s ease;">
+										🟢 Verificando...
+									</span>
+								</div>
 							</div>
 
-							<!-- Detalhes de Conexão e Segurança -->
-							<div style="font-size: 0.78rem; color: #64748b; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; border-top: 1px dashed #cbd5e1; padding-top: 10px;">
-								<span>🔒 <strong>Privacidade Total</strong>: O sistema acessa estritamente os arquivos criados por ele. Suas fotos, e-mails e arquivos pessoais permanecem inacessíveis.</span>
-								<span id="txtUltimaSyncDrive">Última sincronização com Drive: Não realizada</span>
+							<!-- Banner Principal de Status -->
+							<div id="bannerStatusFirebase" style="margin-top: 16px; padding: 16px 18px; border-radius: 8px; display: flex; align-items: flex-start; gap: 14px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1e40af; transition: all 0.3s ease;">
+								<span id="iconeStatusFirebase" style="font-size: 1.8rem; line-height: 1;">☁️</span>
+								<div style="flex: 1;">
+									<div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+										<strong id="txtStatusFirebaseTitulo" style="font-size: 1.05rem;">Status do Banco de Dados: Conectado e Operante</strong>
+										<span id="txtModoOperacao" style="font-size: 0.78rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; background: rgba(0,0,0,0.06);">Modo Nuvem Ativo</span>
+									</div>
+									<p id="txtStatusFirebaseDesc" style="margin: 6px 0 0 0; font-size: 0.86rem; line-height: 1.5; color: inherit; opacity: 0.95;">
+										Seus dados estão sendo sincronizados e salvos com segurança em tempo real no servidor Firebase Firestore. Qualquer cliente cadastrado ou ordem de serviço aberta fica online imediatamente.
+									</p>
+								</div>
+							</div>
+
+							<!-- Grid de Métricas da Conexão Firebase -->
+							<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin-top: 16px;">
+								<div style="background: var(--bg-surface); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+									<span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Servidor / Nuvem</span>
+									<div style="font-weight: 600; font-size: 0.9rem; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+										<span>Google Cloud Firestore</span>
+									</div>
+									<span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 2px; word-break: break-all;" id="txtFirebaseDbId">
+										Base: ai-studio-lavajatodanilode...
+									</span>
+								</div>
+
+								<div style="background: var(--bg-surface); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+									<span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Estabelecimento Conectado</span>
+									<div style="font-weight: 600; font-size: 0.9rem; color: var(--text-main); display: flex; align-items: center; gap: 6px;">
+										<span id="txtFirebaseEmpresaNome">Carregando...</span>
+									</div>
+									<span style="font-size: 0.75rem; color: var(--text-muted); display: block; margin-top: 2px;" id="txtFirebaseEmpresaId">
+										ID: -
+									</span>
+								</div>
+
+								<div style="background: var(--bg-surface); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+									<span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Última Sincronização</span>
+									<div style="font-weight: 600; font-size: 0.9rem; color: var(--text-main);" id="txtFirebaseUltimaSync">
+										Sincronizando...
+									</div>
+									<span style="font-size: 0.75rem; color: #16a34a;" id="txtFirebaseStatusSync">
+										● Canal bidirecional aberto
+									</span>
+								</div>
+
+								<div style="background: var(--bg-surface); padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color);">
+									<span style="font-size: 0.75rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: block; margin-bottom: 4px;">Sinal de Rede Local</span>
+									<div style="font-weight: 600; font-size: 0.9rem; color: var(--text-main);" id="txtFirebaseSinalRede">
+										🌐 Internet Ativa
+									</div>
+									<span style="font-size: 0.75rem; color: var(--text-muted);" id="txtFirebaseLatencia">
+										Latência: verificando...
+									</span>
+								</div>
+							</div>
+
+							<!-- Botões de Ação Rápida do Firebase -->
+							<div style="margin-top: 16px; padding-top: 14px; border-top: 1px dashed var(--border-color); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+								<span style="font-size: 0.8rem; color: var(--text-muted);">
+									🛡️ <strong>Persistência Híbrida Ativa</strong>: Dados protegidos no dispositivo e replicados instantaneamente na nuvem.
+								</span>
+								<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+									<button type="button" class="btn btn-secondary" id="btnTestarConexaoFirebase" onclick="testarConexaoFirebaseUI()" style="font-size: 0.82rem; padding: 6px 12px;">
+										🔄 Testar Conexão com Firebase
+									</button>
+									<button type="button" class="btn btn-primary" id="btnSincronizarFirebase" onclick="forcarSincronizacaoFirebaseUI()" style="font-size: 0.82rem; padding: 6px 12px;">
+										⚡ Forçar Sincronização Agora
+									</button>
+								</div>
 							</div>
 						</div>
 
@@ -442,9 +439,9 @@
 						<div class="settings-section-card" style="margin-top: 18px;" id="cardResumoBase">
 							<div class="settings-section-header">
 								<h2 class="settings-section-title">
-									<span>📊 Diagnóstico da Base Ativa</span>
+									<span>📊 Diagnóstico da Base de Dados</span>
 								</h2>
-								<span class="badge badge-success" id="badgeOrigemBase">Base Local Operante</span>
+								<span class="badge badge-success" id="badgeOrigemBase">Base Ativa e Operante</span>
 							</div>
 
 							<div class="dashboard-grid" style="margin-bottom: 0;">
@@ -478,78 +475,76 @@
 								</div>
 							</div>
 
-							<div id="infoUltimaOrigem" style="font-size: 0.85rem; color: var(--text-muted); background: var(--bg-surface); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+							<div id="infoUltimaOrigem" style="font-size: 0.85rem; color: var(--text-muted); background: var(--bg-surface); padding: 10px 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 12px;">
 								Carregando detalhes do banco de dados...
 							</div>
 						</div>
 
-						<!-- Seção 1: Puxar / Importar Planilha Excel -->
-						<div class="settings-section-card" style="margin-top: 18px;" id="cardImportarExcel">
+						<!-- Seção 1: Salvar / Exportar Backup em Formato JSON -->
+						<div class="settings-section-card" style="margin-top: 18px;" id="cardExportarJSON">
 							<div class="settings-section-header">
 								<h2 class="settings-section-title">
-									<span>📂 Puxar / Carregar Banco de Dados de Planilha</span>
+									<span>💾 Baixar Cópia dos Dados (Backup JSON)</span>
 								</h2>
-								<span style="font-size: 0.8rem; color: var(--text-muted);">Formato suportado: .xlsx</span>
+								<span style="font-size: 0.8rem; color: var(--text-muted);">Formato seguro e universal (.json)</span>
 							</div>
 
 							<p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
-								Selecione uma planilha de Excel (com as abas de <em>Clientes, Servicos, Pedidos_OS e Livro_Caixa</em>). O sistema passará a utilizar essa planilha como a base ativa oficial.
+								Baixe a qualquer momento uma cópia física completa e legível de todas as informações do seu negócio (clientes, catálogo, ordens de serviço, caixa, estoque e equipe) salva diretamente no seu computador ou pen drive.
+							</p>
+
+							<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center; background: var(--bg-surface); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+								<button type="button" class="btn btn-primary" onclick="executarExportacaoJSON()" id="btnExportarBaseJSON" style="font-size: 0.9rem; padding: 10px 18px;">
+									<span>📥 Baixar Dados em Formato JSON (.json)</span>
+								</button>
+								<span id="txtUltimoBackupJSON" style="font-size: 0.84rem; color: var(--text-muted);">
+									Nenhum backup baixado nesta sessão.
+								</span>
+							</div>
+						</div>
+
+						<!-- Seção 2: Restaurar / Carregar Backup em JSON -->
+						<div class="settings-section-card" style="margin-top: 18px;" id="cardImportarJSON">
+							<div class="settings-section-header">
+								<h2 class="settings-section-title">
+									<span>📂 Restaurar / Carregar Backup de Arquivo JSON</span>
+								</h2>
+								<span style="font-size: 0.8rem; color: var(--text-muted);">Suporta backups .json do sistema</span>
+							</div>
+
+							<p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
+								Selecione um arquivo <code>.json</code> exportado previamente pelo sistema para restaurar todos os dados em um novo dispositivo ou recuperar informações com total segurança.
 							</p>
 
 							<!-- Dropzone para arrastar ou clicar -->
-							<div class="excel-dropzone" id="dropzoneExcel" onclick="document.getElementById('inputArquivoExcel').click()">
+							<div class="excel-dropzone" id="dropzoneJSON" onclick="document.getElementById('inputArquivoJSON').click()" style="cursor: pointer;">
 								<span class="excel-dropzone-icon">📥</span>
-								<span class="excel-dropzone-title">Clique ou arraste sua planilha aqui</span>
-								<span class="excel-dropzone-desc">Selecione o arquivo .xlsx gerado pelo sistema ou criado a partir do modelo padrão</span>
-								<input type="file" id="inputArquivoExcel" accept=".xlsx, .xls" style="display: none;" onchange="tratarArquivoSelecionado(event)" />
+								<span class="excel-dropzone-title" id="dropzoneJSONTitle">Clique ou arraste seu arquivo .json aqui</span>
+								<span class="excel-dropzone-desc" id="dropzoneJSONDesc">Selecione o arquivo de backup (.json) gerado anteriormente</span>
+								<input type="file" id="inputArquivoJSON" accept=".json, application/json" style="display: none;" onchange="tratarArquivoJSONSelecionado(event)" />
 							</div>
 
-							<!-- Opções de Importação -->
-							<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; background: var(--bg-surface); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color);">
+							<!-- Opções de Restauração -->
+							<div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center; justify-content: space-between; background: var(--bg-surface); padding: 14px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); margin-top: 12px;">
 								<div>
-									<label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 4px;">Modo de Aplicação da Planilha:</label>
-									<div style="display: flex; gap: 16px;">
+									<label style="font-weight: 600; font-size: 0.9rem; display: block; margin-bottom: 4px;">Modo de Aplicação do Backup:</label>
+									<div style="display: flex; gap: 16px; flex-wrap: wrap;">
 										<label style="display: flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer;">
-											<input type="radio" name="modoImportacao" value="substituir" checked /> Substituir base ativa (recomendado)
+											<input type="radio" name="modoImportacaoJSON" value="substituir" checked /> Substituir base ativa (recomendado)
 										</label>
 										<label style="display: flex; align-items: center; gap: 6px; font-size: 0.88rem; cursor: pointer;">
-											<input type="radio" name="modoImportacao" value="mesclar" /> Mesclar com dados atuais
+											<input type="radio" name="modoImportacaoJSON" value="mesclar" /> Mesclar com dados atuais
 										</label>
 									</div>
 								</div>
 
-								<button type="button" class="btn btn-primary" id="btnConfirmarImportacao" onclick="executarImportacao()" disabled>
-									🚀 Carregar Planilha Selecionada
+								<button type="button" class="btn btn-primary" id="btnConfirmarImportacaoJSON" onclick="executarImportacaoJSON()" disabled>
+									🚀 Restaurar Backup Selecionado
 								</button>
 							</div>
 
-							<!-- Feedback de Importação -->
-							<div id="resultadoImportacao" style="display: none;"></div>
-						</div>
-
-						<!-- Seção 2: Salvar / Exportar Backup em Excel -->
-						<div class="settings-section-card" style="margin-top: 18px;" id="cardExportarExcel">
-							<div class="settings-section-header">
-								<h2 class="settings-section-title">
-									<span>💾 Salvar / Exportar Backup em Excel</span>
-								</h2>
-								<button type="button" class="btn btn-secondary" onclick="DatabaseExcelService.baixarModeloExemplo()">
-									📄 Baixar Modelo em Branco
-								</button>
-							</div>
-
-							<p style="font-size: 0.88rem; color: var(--text-muted); line-height: 1.5;">
-								Gere uma cópia física da sua base de dados atualizada a qualquer momento. O arquivo gerado contém todas as abas consolidadas prontas para backup em nuvem, pen drive ou edição no Excel.
-							</p>
-
-							<div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
-								<button type="button" class="btn btn-primary" onclick="executarExportacao()" id="btnExportarBase">
-									<span>📥 Baixar Planilha Completa Atual (.xlsx)</span>
-								</button>
-								<span id="txtUltimoBackup" style="font-size: 0.82rem; color: var(--text-muted);">
-									Nenhum backup baixado nesta sessão.
-								</span>
-							</div>
+							<!-- Feedback de Restauração -->
+							<div id="resultadoImportacaoJSON" style="display: none; margin-top: 14px;"></div>
 						</div>
 
 					</div>
@@ -1032,9 +1027,7 @@
 		<!-- Scripts -->
 		<script src="https://accounts.google.com/gsi/client" async defer></script>
 		<script src="js/brand-service.js"></script>
-		<script src="js/xlsx.full.min.js"></script>
-		<script src="js/database-excel.js"></script>
-		<script src="js/google-drive-service.js"></script>
+		<script src="js/backup-service.js"></script>
 		<script src="js/caixa-service.js"></script>
 		<script src="js/equipe-service.js"></script>
 		<script src="js/configuracoes.js"></script>
