@@ -238,6 +238,7 @@ class BackupService {
 	}
 }
 
-window.BackupService = BackupService;
-export default BackupService;
-export { BackupService };
+if (typeof window !== 'undefined') {
+	window.BackupService = BackupService;
+}
+
