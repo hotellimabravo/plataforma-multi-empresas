@@ -272,6 +272,12 @@ app.get('/manifest.json', (req, res) => {
 // Explicitly serve /js folder
 app.use('/js', express.static(path.join(__dirname, 'js')));
 
+// Clean URL page list
+const pages = [
+	'clientes', 'historico', 'pedidos', 'servicos', 'caixa', 
+	'configuracoes', 'agendamentos', 'estoque', 'fidelidade', 'login', 'index'
+];
+
 // Middleware Anti-Cache para páginas HTML (evita bfcache do celular expondo dados após logout)
 app.use((req, res, next) => {
 	const p = req.path.toLowerCase();
@@ -296,10 +302,6 @@ app.use(express.static(__dirname, {
 }));
 
 // Route handlers for clean URLs (with or without trailing slash)
-const pages = [
-	'clientes', 'historico', 'pedidos', 'servicos', 'caixa', 
-	'configuracoes', 'agendamentos', 'estoque', 'fidelidade', 'login', 'index'
-];
 pages.forEach((page) => {
 	app.get([`/${page}`, `/${page}/`], (req, res) => {
 		res.sendFile(path.join(__dirname, `${page}.html`));
