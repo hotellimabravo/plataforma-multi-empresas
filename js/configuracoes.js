@@ -23,28 +23,30 @@ document.addEventListener('DOMContentLoaded', () => {
 	const abaUrl = urlParams.get('aba');
 	const hashUrl = window.location.hash ? window.location.hash.replace('#', '') : null;
 	const abaDestino = abaUrl || hashUrl;
-	if (abaDestino && ['negocio', 'database', 'usuarios', 'equipe', 'empresas'].includes(abaDestino)) {
+	if (abaDestino && ['negocio', 'database', 'usuarios', 'equipe', 'mensagens', 'empresas'].includes(abaDestino)) {
 		alternarAbaConfig(abaDestino);
 	}
 });
 
-// Alternância de Abas (Negócio, Database, Usuários, Equipe, Empresas SaaS)
+// Alternância de Abas (Negócio, Database, Usuários, Equipe, Mensagens, Empresas SaaS)
 function alternarAbaConfig(aba) {
 	const tabNegocio = document.getElementById('tabNavNegocio');
 	const tabDatabase = document.getElementById('tabNavDatabase');
 	const tabUsuarios = document.getElementById('tabNavUsuarios');
 	const tabEquipe = document.getElementById('tabNavEquipe');
+	const tabMensagens = document.getElementById('tabNavMensagens');
 	const tabEmpresas = document.getElementById('tabNavEmpresasMaster');
 
 	const conteudoNegocio = document.getElementById('abaConteudoNegocio');
 	const conteudoDatabase = document.getElementById('abaConteudoDatabase');
 	const conteudoUsuarios = document.getElementById('abaConteudoUsuarios');
 	const conteudoEquipe = document.getElementById('abaConteudoEquipe');
+	const conteudoMensagens = document.getElementById('abaConteudoMensagens');
 	const conteudoEmpresas = document.getElementById('abaConteudoEmpresas');
 
 	// Desativa todas
-	[tabNegocio, tabDatabase, tabUsuarios, tabEquipe, tabEmpresas].forEach(t => t && t.classList.remove('active'));
-	[conteudoNegocio, conteudoDatabase, conteudoUsuarios, conteudoEquipe, conteudoEmpresas].forEach(c => c && (c.style.display = 'none'));
+	[tabNegocio, tabDatabase, tabUsuarios, tabEquipe, tabMensagens, tabEmpresas].forEach(t => t && t.classList.remove('active'));
+	[conteudoNegocio, conteudoDatabase, conteudoUsuarios, conteudoEquipe, conteudoMensagens, conteudoEmpresas].forEach(c => c && (c.style.display = 'none'));
 
 	if (aba === 'negocio') {
 		if (tabNegocio) tabNegocio.classList.add('active');
@@ -69,6 +71,10 @@ function alternarAbaConfig(aba) {
 		} else if (typeof filtrarComissoes === 'function') {
 			filtrarComissoes();
 		}
+	} else if (aba === 'mensagens') {
+		if (tabMensagens) tabMensagens.classList.add('active');
+		if (conteudoMensagens) conteudoMensagens.style.display = 'block';
+		carregarFormularioMensagens();
 	} else if (aba === 'empresas') {
 		if (tabEmpresas) tabEmpresas.classList.add('active');
 		if (conteudoEmpresas) conteudoEmpresas.style.display = 'block';
@@ -1402,5 +1408,173 @@ window.removerMembroEquipeConfig = removerMembroEquipeConfig;
 window.cancelarEdicaoMembroConfig = cancelarEdicaoMembroConfig;
 window.filtrarComissoes = filtrarComissoes;
 window.limparFiltroComissoes = limparFiltroComissoes;
+
+// ==========================================================================
+// LÓGICA DA ABA MENSAGENS (WHATSAPP)
+// ==========================================================================
+
+const DADOS_SIMULACAO_PREVIA = {
+	clienteNome: 'Carlos Eduardo',
+	cliente: 'Carlos Eduardo',
+	primeiro_nome: 'Carlos',
+	modelo: 'Honda Civic G10',
+	veiculo: 'Honda Civic G10',
+	placa: 'BRA-2E19',
+	data: '25/09/2026',
+	hora: '14:30',
+	servicos: 'Lavagem Completa + Cera Pro',
+	valor: 90,
+	numeroOS: '001428',
+	formaPagamento: 'Pix',
+	linkAgenda: 'https://calendar.google.com/event?eid=preview_exemplo',
+	diasSemVisita: 35,
+	saldoFidelidade: '7 de 10 selos acumulados'
+};
+
+function carregarFormularioMensagens() {
+	if (typeof window.WhatsAppService === 'undefined') return;
+
+	const templates = window.WhatsAppService.getTemplates();
+	const tipos = ['agendamento', 'pronto', 'recibo', 'fidelidade'];
+
+	tipos.forEach(tipo => {
+		const txtArea = document.getElementById(`template_${tipo}`);
+		if (txtArea) {
+			const modelo = templates[tipo] || window.WhatsAppService.MODELOS_PADRAO[tipo];
+			txtArea.value = modelo ? modelo.template : '';
+
+			// Remove listener anterior clonando ou atribuindo oninput
+			txtArea.oninput = () => atualizarPreviaMensagem(tipo);
+			atualizarPreviaMensagem(tipo);
+		}
+	});
+}
+
+function atualizarPreviaMensagem(tipo) {
+	if (typeof window.WhatsAppService === 'undefined') return;
+
+	const txtArea = document.getElementById(`template_${tipo}`);
+	const prevElem = document.getElementById(`previewText_${tipo}`);
+	const charCountElem = document.getElementById(`charCount_${tipo}`);
+
+	if (!txtArea || !prevElem) return;
+
+	const templateAtual = txtArea.value || '';
+	if (charCountElem) {
+		charCountElem.textContent = `${templateAtual.length} caracteres`;
+	}
+
+	// Substitui as variáveis com dados de simulação
+	const textoFinal = window.WhatsAppService.substituirVariaveis(templateAtual, DADOS_SIMULACAO_PREVIA, {
+		incluirValor: true,
+		incluirPix: true,
+		incluirAgenda: true
+	});
+
+	// Converte formatação padrão do WhatsApp para visualização limpa
+	const htmlSeguro = textoFinal
+		.replace(/&/g, '&amp;')
+		.replace(/</g, '&lt;')
+		.replace(/>/g, '&gt;')
+		.replace(/\*(.*?)\*/g, '<strong>$1</strong>')
+		.replace(/_(.*?)_/g, '<em>$1</em>');
+
+	prevElem.innerHTML = htmlSeguro;
+}
+
+function inserirTagNoModelo(tipo, tag) {
+	const txtArea = document.getElementById(`template_${tipo}`);
+	if (!txtArea) return;
+
+	txtArea.focus();
+	const startPos = txtArea.selectionStart || 0;
+	const endPos = txtArea.selectionEnd || 0;
+	const valorOriginal = txtArea.value;
+
+	txtArea.value = valorOriginal.substring(0, startPos) + tag + valorOriginal.substring(endPos);
+	txtArea.selectionStart = startPos + tag.length;
+	txtArea.selectionEnd = startPos + tag.length;
+
+	atualizarPreviaMensagem(tipo);
+
+	if (window.UI) {
+		window.UI.toast(`Etiqueta ${tag} inserida!`, 'info');
+	}
+}
+
+function salvarModelosMensagensConfig() {
+	if (typeof window.WhatsAppService === 'undefined') return;
+
+	const tipos = ['agendamento', 'pronto', 'recibo', 'fidelidade'];
+	const novosModelos = {};
+
+	tipos.forEach(tipo => {
+		const txtArea = document.getElementById(`template_${tipo}`);
+		if (txtArea) {
+			novosModelos[tipo] = {
+				template: txtArea.value.trim()
+			};
+		}
+	});
+
+	window.WhatsAppService.saveTemplates(novosModelos);
+
+	// Exibe banner de sucesso e toast
+	const bannerSucesso = document.getElementById('msgSucessoMensagens');
+	if (bannerSucesso) {
+		bannerSucesso.style.display = 'flex';
+		bannerSucesso.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+		setTimeout(() => {
+			if (bannerSucesso) bannerSucesso.style.display = 'none';
+		}, 6000);
+	}
+
+	if (window.UI) {
+		window.UI.toast('Modelos de mensagens do WhatsApp salvos com sucesso!', 'success');
+	} else {
+		alert('Modelos de mensagens salvos com sucesso!');
+	}
+}
+
+function restaurarModeloIndividual(tipo) {
+	if (typeof window.WhatsAppService === 'undefined') return;
+
+	const confirmou = confirm(`Deseja restaurar o texto padrão de fábrica para este modelo? Todas as alterações manuais deste item serão perdidas.`);
+	if (!confirmou) return;
+
+	const restaurado = window.WhatsAppService.resetTemplate(tipo);
+	const txtArea = document.getElementById(`template_${tipo}`);
+	if (txtArea && restaurado) {
+		txtArea.value = restaurado.template;
+		atualizarPreviaMensagem(tipo);
+	}
+
+	if (window.UI) {
+		window.UI.toast('Modelo restaurado para o padrão de fábrica.', 'info');
+	}
+}
+
+function restaurarTodosModelosMensagens() {
+	if (typeof window.WhatsAppService === 'undefined') return;
+
+	const confirmou = confirm('Atenção: Deseja restaurar TODOS os modelos de mensagens para o padrão de fábrica?');
+	if (!confirmou) return;
+
+	window.WhatsAppService.resetAll();
+	carregarFormularioMensagens();
+
+	if (window.UI) {
+		window.UI.toast('Todos os modelos foram restaurados para o padrão!', 'info');
+	}
+}
+
+// Expõe para eventos onclick do HTML
+window.carregarFormularioMensagens = carregarFormularioMensagens;
+window.atualizarPreviaMensagem = atualizarPreviaMensagem;
+window.inserirTagNoModelo = inserirTagNoModelo;
+window.salvarModelosMensagensConfig = salvarModelosMensagensConfig;
+window.restaurarModeloIndividual = restaurarModeloIndividual;
+window.restaurarTodosModelosMensagens = restaurarTodosModelosMensagens;
+
 
 

@@ -848,18 +848,6 @@ const ReciboService = {
 	enviarWhatsApp: function (pedido) {
 		if (!pedido) return;
 
-		const config = (typeof BrandService !== 'undefined' && BrandService.getConfig)
-			? BrandService.getConfig()
-			: (JSON.parse(localStorage.getItem('config_negocio')) || {});
-
-		const nomeEmpresa = config.nomeEstabelecimento || 'SEU NEGÓCIO';
-		const numOS = (pedido.id || '').replace(/^os_/, '').slice(-6) || '000001';
-		const valorFinal = parseFloat(pedido.valor || 0).toFixed(2);
-		const servicos = pedido.servicos || 'Serviços Prestados';
-		const formaPgto = (pedido.formaPagamento || 'Pix').toUpperCase();
-		const dataEmissao = this.formatarData(pedido.dataEncerramento || pedido.data || '');
-		const horaEmissao = pedido.horaEncerramento || pedido.horaEntrada || '';
-
 		// Busca telefone do cliente se houver na lista de clientes
 		const clientes = JSON.parse(localStorage.getItem('clientes')) || [];
 		const clienteCadastrado = clientes.find(
@@ -872,6 +860,28 @@ const ReciboService = {
 				telLimpo = '55' + telLimpo;
 			}
 		}
+
+		if (typeof WhatsAppService !== 'undefined') {
+			WhatsAppService.abrirModalDisparo({
+				tipo: 'recibo',
+				dados: pedido,
+				telefone: telLimpo,
+				titulo: 'Enviar Recibo de Pagamento'
+			});
+			return;
+		}
+
+		const config = (typeof BrandService !== 'undefined' && BrandService.getConfig)
+			? BrandService.getConfig()
+			: (JSON.parse(localStorage.getItem('config_negocio')) || {});
+
+		const nomeEmpresa = config.nomeEstabelecimento || 'SEU NEGÓCIO';
+		const numOS = (pedido.id || '').replace(/^os_/, '').slice(-6) || '000001';
+		const valorFinal = parseFloat(pedido.valor || 0).toFixed(2);
+		const servicos = pedido.servicos || 'Serviços Prestados';
+		const formaPgto = (pedido.formaPagamento || 'Pix').toUpperCase();
+		const dataEmissao = this.formatarData(pedido.dataEncerramento || pedido.data || '');
+		const horaEmissao = pedido.horaEncerramento || pedido.horaEntrada || '';
 
 		let msg = `*🧾 COMPROVANTE DE PAGAMENTO / RECIBO*\n`;
 		msg += `*${nomeEmpresa.toUpperCase()}*\n`;

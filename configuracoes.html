@@ -80,6 +80,11 @@
 						<span>Equipe & Comissões</span>
 					</button>
 
+					<button type="button" class="settings-nav-item" id="tabNavMensagens" onclick="alternarAbaConfig('mensagens')">
+						<span class="settings-nav-icon">💬</span>
+						<span>Mensagens</span>
+					</button>
+
 					<button type="button" class="settings-nav-item" id="tabNavEmpresasMaster" onclick="alternarAbaConfig('empresas')" style="display: none; background: #fffbeb; border: 1px solid #fde68a; color: #92400e;">
 						<span class="settings-nav-icon">👑</span>
 						<span>Empresas (SaaS)</span>
@@ -862,6 +867,298 @@
 						</div>
 					</div>
 
+					<!-- ==================================================== -->
+					<!-- ABA 6: MENSAGENS (WHATSAPP) E TEMPLATES DE TEXTO -->
+					<!-- ==================================================== -->
+					<div id="abaConteudoMensagens" style="display: none;">
+						<!-- Feedback ao Salvar Mensagens -->
+						<div id="msgSucessoMensagens" class="db-status-banner" style="display: none; background: #f0fdf4; border-color: #bbf7d0; color: #166534; margin-bottom: 20px;">
+							<span class="db-status-icon">✅</span>
+							<div class="db-status-text">
+								<strong>Modelos de Mensagens Salvos com Sucesso!</strong>
+								<p style="color: #15803d;">Os novos textos foram salvos e já estão ativos em todos os módulos (Agendamentos, O.S., Caixa e Fidelidade).</p>
+							</div>
+						</div>
+
+						<div class="negocio-hero-card" style="border-top: 4px solid #25d366;">
+							<div class="negocio-hero-top">
+								<div class="negocio-hero-title-group">
+									<h2 class="negocio-hero-title">
+										<span>💬 Personalização de Mensagens (WhatsApp)</span>
+									</h2>
+									<p class="negocio-hero-desc">
+										Personalize o conteúdo das mensagens automáticas disparadas para seus clientes. Use as <strong>etiquetas dinâmicas</strong> para preencher automaticamente nome, veículo, serviços, valores e horários.
+									</p>
+								</div>
+								<div style="display: flex; gap: 8px; flex-wrap: wrap;">
+									<button type="button" class="btn" onclick="restaurarTodosModelosMensagens()" style="background: #f8fafc; border: 1px solid #cbd5e1; color: #475569; font-weight: 600;" title="Restaura os textos originais de fábrica para todos os modelos">
+										<span>🔄 Restaurar Padrões</span>
+									</button>
+									<button type="button" class="btn btn-primary" onclick="salvarModelosMensagensConfig()" style="background: #16a34a; border-color: #15803d; font-weight: 700; display: inline-flex; align-items: center; gap: 6px;">
+										<span>💾 Salvar Modelos</span>
+									</button>
+								</div>
+							</div>
+
+							<!-- Banner Explicativo sobre Omissão de Preço / Customização -->
+							<div class="alert alert-info" style="margin-top: 16px; margin-bottom: 16px; background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; padding: 12px 16px; border-radius: 8px; display: flex; align-items: flex-start; gap: 10px;">
+								<span style="font-size: 1.25rem;">💡</span>
+								<div style="font-size: 0.85rem; line-height: 1.45;">
+									<strong>Como controlar o envio de preços ou informações:</strong><br>
+									Se você <strong>não quiser</strong> enviar o preço/valor previsto para o cliente (por exemplo, na confirmação de agendamento), basta <strong>apagar a etiqueta <code>{valor_total}</code></strong> da caixa de texto abaixo e clicar em salvar. A partir desse instante, nenhuma mensagem desse modelo conterá o valor do serviço!
+								</div>
+							</div>
+
+							<!-- LISTA DE MODELOS / ITENS -->
+							<div style="display: flex; flex-direction: column; gap: 24px; margin-top: 10px;">
+
+								<!-- ITEM 1: AGENDAMENTO -->
+								<div class="msg-template-card" id="cardMsgAgendamento">
+									<div class="msg-template-header">
+										<div class="msg-template-title-group">
+											<h3>
+												<span>📅 1. Agendamento & Lembrete de Horário</span>
+												<span class="badge" style="background: #e0f2fe; color: #0369a1; border-color: #bae6fd; font-size: 0.72rem;">Módulo Agenda</span>
+											</h3>
+											<p class="msg-template-desc">
+												Mensagem disparada no botão de WhatsApp da lista de agendamentos para confirmar a reserva ou lembrar o cliente do dia e hora.
+											</p>
+										</div>
+										<button type="button" class="btn btn-sm" onclick="restaurarModeloIndividual('agendamento')" style="background: transparent; border: 1px solid #cbd5e1; color: #64748b; font-size: 0.76rem;" title="Restaurar padrão deste item">
+											🔄 Restaurar este padrão
+										</button>
+									</div>
+
+									<!-- Seletor de Etiquetas Dinâmicas -->
+									<div class="tag-chips-wrapper">
+										<div class="tag-chips-label">
+											<span>🏷️ Etiquetas Disponíveis (Clique para inserir no texto):</span>
+											<span style="font-weight: normal; color: #64748b;">Insere na posição do cursor</span>
+										</div>
+										<div class="tag-chips-grid">
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{nome_cliente}')">🏷️ {nome_cliente}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{primeiro_nome}')">🏷️ {primeiro_nome}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{veiculo}')">🚗 {veiculo}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{placa}')">🔢 {placa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{data_hora}')">📅 {data_hora}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{servicos}')">🛠️ {servicos}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{valor_total}')" style="background: #fef3c7; border-color: #fde68a; color: #92400e;">💰 {valor_total}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{link_agenda}')">📆 {link_agenda}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{nome_empresa}')">🏢 {nome_empresa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('agendamento', '{chave_pix}')">🔑 {chave_pix}</button>
+										</div>
+									</div>
+
+									<div class="whatsapp-editor-grid">
+										<div class="whatsapp-textarea-box">
+											<div style="display: flex; justify-content: space-between; align-items: center;">
+												<label for="template_agendamento" style="font-size: 0.8rem; font-weight: 700; color: #334155;">Texto do Modelo:</label>
+												<span id="charCount_agendamento" style="font-size: 0.75rem; color: #64748b;">0 caracteres</span>
+											</div>
+											<textarea id="template_agendamento" class="whatsapp-textarea" rows="7"></textarea>
+										</div>
+										<div>
+											<label style="font-size: 0.8rem; font-weight: 700; color: #334155; display: block; margin-bottom: 6px;">👁️ Prévia ao Vivo no WhatsApp:</label>
+											<div class="whatsapp-chat-preview">
+												<div class="whatsapp-balloon">
+													<div id="previewText_agendamento" style="white-space: pre-wrap;"></div>
+													<div class="whatsapp-balloon-time">
+														<span>14:30</span>
+														<span style="color: #34b7f1; font-weight: bold;">✓✓</span>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- ITEM 2: VEÍCULO PRONTO (O.S.) -->
+								<div class="msg-template-card" id="cardMsgPronto">
+									<div class="msg-template-header">
+										<div class="msg-template-title-group">
+											<h3>
+												<span>🚗 2. Conclusão de Serviço & Veículo Pronto</span>
+												<span class="badge" style="background: #dcfce7; color: #15803d; border-color: #bbf7d0; font-size: 0.72rem;">Módulo Pedidos / O.S.</span>
+											</h3>
+											<p class="msg-template-desc">
+												Mensagem disparada no botão "💬 Carro Pronto" da lista de O.S. no pátio para avisar que o trabalho foi concluído e o veículo está liberado.
+											</p>
+										</div>
+										<button type="button" class="btn btn-sm" onclick="restaurarModeloIndividual('pronto')" style="background: transparent; border: 1px solid #cbd5e1; color: #64748b; font-size: 0.76rem;" title="Restaurar padrão deste item">
+											🔄 Restaurar este padrão
+										</button>
+									</div>
+
+									<div class="tag-chips-wrapper">
+										<div class="tag-chips-label">
+											<span>🏷️ Etiquetas Disponíveis (Clique para inserir no texto):</span>
+											<span style="font-weight: normal; color: #64748b;">Insere na posição do cursor</span>
+										</div>
+										<div class="tag-chips-grid">
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{nome_cliente}')">🏷️ {nome_cliente}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{primeiro_nome}')">🏷️ {primeiro_nome}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{veiculo}')">🚗 {veiculo}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{placa}')">🔢 {placa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{servicos}')">🛠️ {servicos}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{valor_total}')" style="background: #fef3c7; border-color: #fde68a; color: #92400e;">💰 {valor_total}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{nome_empresa}')">🏢 {nome_empresa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('pronto', '{chave_pix}')">🔑 {chave_pix}</button>
+										</div>
+									</div>
+
+									<div class="whatsapp-editor-grid">
+										<div class="whatsapp-textarea-box">
+											<div style="display: flex; justify-content: space-between; align-items: center;">
+												<label for="template_pronto" style="font-size: 0.8rem; font-weight: 700; color: #334155;">Texto do Modelo:</label>
+												<span id="charCount_pronto" style="font-size: 0.75rem; color: #64748b;">0 caracteres</span>
+											</div>
+											<textarea id="template_pronto" class="whatsapp-textarea" rows="7"></textarea>
+										</div>
+										<div>
+											<label style="font-size: 0.8rem; font-weight: 700; color: #334155; display: block; margin-bottom: 6px;">👁️ Prévia ao Vivo no WhatsApp:</label>
+											<div class="whatsapp-chat-preview">
+												<div class="whatsapp-balloon">
+													<div id="previewText_pronto" style="white-space: pre-wrap;"></div>
+													<div class="whatsapp-balloon-time">
+														<span>16:45</span>
+														<span style="color: #34b7f1; font-weight: bold;">✓✓</span>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- ITEM 3: RECIBO / COMPROVANTE -->
+								<div class="msg-template-card" id="cardMsgRecibo">
+									<div class="msg-template-header">
+										<div class="msg-template-title-group">
+											<h3>
+												<span>🧾 3. Comprovante de Pagamento & Recibo</span>
+												<span class="badge" style="background: #fef3c7; color: #b45309; border-color: #fde68a; font-size: 0.72rem;">Módulos Caixa & Histórico</span>
+											</h3>
+											<p class="msg-template-desc">
+												Comprovante digital emitido após o encerramento e pagamento da Ordem de Serviço, detalhando quitação e forma de pagamento.
+											</p>
+										</div>
+										<button type="button" class="btn btn-sm" onclick="restaurarModeloIndividual('recibo')" style="background: transparent; border: 1px solid #cbd5e1; color: #64748b; font-size: 0.76rem;" title="Restaurar padrão deste item">
+											🔄 Restaurar este padrão
+										</button>
+									</div>
+
+									<div class="tag-chips-wrapper">
+										<div class="tag-chips-label">
+											<span>🏷️ Etiquetas Disponíveis (Clique para inserir no texto):</span>
+											<span style="font-weight: normal; color: #64748b;">Insere na posição do cursor</span>
+										</div>
+										<div class="tag-chips-grid">
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{nome_cliente}')">🏷️ {nome_cliente}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{primeiro_nome}')">🏷️ {primeiro_nome}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{numero_os}')">#️⃣ {numero_os}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{veiculo}')">🚗 {veiculo}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{placa}')">🔢 {placa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{data_hora}')">📅 {data_hora}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{servicos}')">🛠️ {servicos}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{valor_total}')" style="background: #fef3c7; border-color: #fde68a; color: #92400e;">💰 {valor_total}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{forma_pagamento}')">💳 {forma_pagamento}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{nome_empresa}')">🏢 {nome_empresa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{telefone_empresa}')">📞 {telefone_empresa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('recibo', '{chave_pix}')">🔑 {chave_pix}</button>
+										</div>
+									</div>
+
+									<div class="whatsapp-editor-grid">
+										<div class="whatsapp-textarea-box">
+											<div style="display: flex; justify-content: space-between; align-items: center;">
+												<label for="template_recibo" style="font-size: 0.8rem; font-weight: 700; color: #334155;">Texto do Modelo:</label>
+												<span id="charCount_recibo" style="font-size: 0.75rem; color: #64748b;">0 caracteres</span>
+											</div>
+											<textarea id="template_recibo" class="whatsapp-textarea" rows="8"></textarea>
+										</div>
+										<div>
+											<label style="font-size: 0.8rem; font-weight: 700; color: #334155; display: block; margin-bottom: 6px;">👁️ Prévia ao Vivo no WhatsApp:</label>
+											<div class="whatsapp-chat-preview">
+												<div class="whatsapp-balloon">
+													<div id="previewText_recibo" style="white-space: pre-wrap;"></div>
+													<div class="whatsapp-balloon-time">
+														<span>17:15</span>
+														<span style="color: #34b7f1; font-weight: bold;">✓✓</span>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+								<!-- ITEM 4: FIDELIDADE & REATIVAÇÃO -->
+								<div class="msg-template-card" id="cardMsgFidelidade">
+									<div class="msg-template-header">
+										<div class="msg-template-title-group">
+											<h3>
+												<span>⭐ 4. Reativação & Programa Fidelidade</span>
+												<span class="badge" style="background: #fae8ff; color: #86198f; border-color: #f5d0fe; font-size: 0.72rem;">Módulo Fidelidade</span>
+											</h3>
+											<p class="msg-template-desc">
+												Mensagem enviada para clientes que não visitam a empresa há dias ou para parabenizá-los e informar o saldo de selos e premiações.
+											</p>
+										</div>
+										<button type="button" class="btn btn-sm" onclick="restaurarModeloIndividual('fidelidade')" style="background: transparent; border: 1px solid #cbd5e1; color: #64748b; font-size: 0.76rem;" title="Restaurar padrão deste item">
+											🔄 Restaurar este padrão
+										</button>
+									</div>
+
+									<div class="tag-chips-wrapper">
+										<div class="tag-chips-label">
+											<span>🏷️ Etiquetas Disponíveis (Clique para inserir no texto):</span>
+											<span style="font-weight: normal; color: #64748b;">Insere na posição do cursor</span>
+										</div>
+										<div class="tag-chips-grid">
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{nome_cliente}')">🏷️ {nome_cliente}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{primeiro_nome}')">🏷️ {primeiro_nome}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{veiculo}')">🚗 {veiculo}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{placa}')">🔢 {placa}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{dias_sem_visita}')">⏳ {dias_sem_visita}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{saldo_fidelidade}')">⭐ {saldo_fidelidade}</button>
+											<button type="button" class="tag-chip" onclick="inserirTagNoModelo('fidelidade', '{nome_empresa}')">🏢 {nome_empresa}</button>
+										</div>
+									</div>
+
+									<div class="whatsapp-editor-grid">
+										<div class="whatsapp-textarea-box">
+											<div style="display: flex; justify-content: space-between; align-items: center;">
+												<label for="template_fidelidade" style="font-size: 0.8rem; font-weight: 700; color: #334155;">Texto do Modelo:</label>
+												<span id="charCount_fidelidade" style="font-size: 0.75rem; color: #64748b;">0 caracteres</span>
+											</div>
+											<textarea id="template_fidelidade" class="whatsapp-textarea" rows="7"></textarea>
+										</div>
+										<div>
+											<label style="font-size: 0.8rem; font-weight: 700; color: #334155; display: block; margin-bottom: 6px;">👁️ Prévia ao Vivo no WhatsApp:</label>
+											<div class="whatsapp-chat-preview">
+												<div class="whatsapp-balloon">
+													<div id="previewText_fidelidade" style="white-space: pre-wrap;"></div>
+													<div class="whatsapp-balloon-time">
+														<span>10:00</span>
+														<span style="color: #34b7f1; font-weight: bold;">✓✓</span>
+													</div>
+												</div>
+											</div>
+										</div>
+									</div>
+								</div>
+
+							</div>
+
+							<!-- Ações no Rodapé -->
+							<div style="margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--border-color); display: flex; justify-content: flex-end; gap: 10px;">
+								<button type="button" class="btn btn-primary" onclick="salvarModelosMensagensConfig()" style="background: #16a34a; border-color: #15803d; font-weight: 700; padding: 10px 24px; font-size: 0.95rem; display: inline-flex; align-items: center; gap: 8px;">
+									<span>💾</span>
+									<span>Salvar Todos os Modelos de Mensagens</span>
+								</button>
+							</div>
+
+						</div>
+					</div>
+
 				</div>
 			</div>
 		</main>
@@ -1030,6 +1327,7 @@
 		<script src="js/backup-service.js"></script>
 		<script src="js/caixa-service.js"></script>
 		<script src="js/equipe-service.js"></script>
+		<script src="js/whatsapp-service.js"></script>
 		<script src="js/configuracoes.js"></script>
 		<script>
 			// Setup only once when DOM loads

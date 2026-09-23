@@ -125,6 +125,7 @@
 
 		<script src="js/brand-service.js"></script>
 		<script src="js/caixa-service.js"></script>
+		<script src="js/whatsapp-service.js"></script>
 		<script src="js/fidelidade-service.js"></script>
 		<script>
 
@@ -180,15 +181,6 @@
 					const telLimpo = (c.tel1 || '').replace(/\D/g, '');
 					const prog = item.progressoFidelidade;
 
-					const msgWhats = encodeURIComponent(
-						`Olá ${c.nome}! Tudo bem? 😊\n\n` +
-						`Notamos que já faz ${item.diasSemVisita} dias desde a última visita do seu ${ult.modelo || 'veículo'} (${ult.placa || ''}) no Danilo Detailer.\n\n` +
-						`Que tal renovar o brilho e a proteção da pintura esta semana?\n` +
-						`🎁 Seu saldo de fidelidade: ${prog.selosAtuais}/${prog.metaSelos} selos acumulados (Premiação: ${cfg.premioDescricao})!\n\n` +
-						`Podemos reservar um horário para você?`
-					);
-					const linkWhats = telLimpo ? `https://wa.me/55${telLimpo}?text=${msgWhats}` : '#';
-
 					const tr = document.createElement('tr');
 					tr.innerHTML = `
 						<td>
@@ -204,14 +196,43 @@
 						</td>
 						<td style="text-align:center;">
 							${telLimpo ? `
-								<a href="${linkWhats}" target="_blank" class="btn btn-sm" style="background:#16a34a; color:#fff; display:inline-flex; align-items:center; gap:6px;">
+								<button type="button" class="btn btn-sm" onclick="abrirDisparoWhatsAppFidelidade('${encodeURIComponent(JSON.stringify({
+									nome_cliente: c.nome,
+									cliente: c.nome,
+									modelo: ult.modelo || '',
+									veiculo: ult.modelo || '',
+									placa: ult.placa || '',
+									diasSemVisita: item.diasSemVisita,
+									saldoFidelidade: `${prog.selosAtuais}/${prog.metaSelos} selos acumulados (Premiação: ${cfg.premioDescricao})`,
+									telefone: c.tel1
+								}))}')" style="background:#16a34a; color:#fff; display:inline-flex; align-items:center; gap:6px;">
 									💬 Convidar no WhatsApp
-								</a>
+								</button>
 							` : '<span style="color:var(--text-muted); font-size:0.8rem;">Sem WhatsApp</span>'}
 						</td>
 					`;
 					corpo.appendChild(tr);
 				});
+			}
+
+			function abrirDisparoWhatsAppFidelidade(dadosJsonStr) {
+				try {
+					const dados = JSON.parse(decodeURIComponent(dadosJsonStr));
+					if (typeof WhatsAppService !== 'undefined') {
+						WhatsAppService.abrirModalDisparo({
+							tipo: 'fidelidade',
+							dados: dados,
+							telefone: dados.telefone,
+							titulo: 'Convidar / Reativar Cliente'
+						});
+					} else {
+						const telLimpo = (dados.telefone || '').replace(/\D/g, '');
+						const msg = `Olá ${dados.nome_cliente}! Tudo bem? Que tal agendar um cuidado para o seu ${dados.veiculo}?`;
+						window.open(`https://wa.me/55${telLimpo}?text=${encodeURIComponent(msg)}`, '_blank');
+					}
+				} catch (e) {
+					console.error('Erro ao abrir disparo fidelidade:', e);
+				}
 			}
 
 			document.addEventListener('DOMContentLoaded', () => {

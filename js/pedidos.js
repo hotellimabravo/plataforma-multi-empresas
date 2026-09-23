@@ -367,15 +367,7 @@ function renderizarTabelas() {
 
 			const clientes = JSON.parse(localStorage.getItem('clientes')) || [];
 			const cliObj = clientes.find(c => c.nome && c.nome.toLowerCase() === (p.cliente || '').toLowerCase());
-			const telLimpo = cliObj && cliObj.tel1 ? cliObj.tel1.replace(/\D/g, '') : '';
-			const msgWhats = encodeURIComponent(
-				`Olá ${p.cliente}! 🚗✨\n\n` +
-				`Seu veículo ${p.modelo || ''} (${p.placa}) já foi finalizado e está pronto para retirada no Danilo Detailer!\n\n` +
-				`Serviços realizados: ${p.servicos}\n` +
-				`Valor total: R$ ${valorFormatado}\n\n` +
-				`Aguardamos você!`
-			);
-			const linkWhatsPronto = telLimpo ? `https://wa.me/55${telLimpo}?text=${msgWhats}` : '';
+			const temTelefone = cliObj && cliObj.tel1;
 
 			tr.innerHTML = `
 				<td>
@@ -411,10 +403,10 @@ function renderizarTabelas() {
 				</td>
 				<td style="text-align: center;">
 					<div class="btn-action-group" style="flex-wrap:wrap; justify-content:center;">
-						${linkWhatsPronto ? `
-							<a href="${linkWhatsPronto}" target="_blank" class="btn btn-sm" style="background:#16a34a; color:#fff;" title="Avisar cliente no WhatsApp que o carro está pronto">
+						${temTelefone ? `
+							<button type="button" class="btn btn-sm" onclick="abrirDisparoWhatsAppCarroPronto('${p.id}')" style="background:#16a34a; color:#fff; display:inline-flex; align-items:center; gap:4px;" title="Avisar cliente no WhatsApp que o veículo está pronto">
 								💬 Carro Pronto
-							</a>
+							</button>
 						` : ''}
 						<button type="button" class="btn btn-sm btn-receber-os" data-id="${p.id}" style="background-color: var(--success); color: #fff;">
 							💰 Receber
@@ -944,3 +936,29 @@ document.addEventListener('DOMContentLoaded', () => {
 	carregarProdutosVendaEntrada();
 	renderizarTabelas();
 });
+
+// Abertura do modal interativo de WhatsApp para Veículo Pronto
+function abrirDisparoWhatsAppCarroPronto(pedidoId) {
+	const pedidos = JSON.parse(localStorage.getItem('pedidos')) || [];
+	const p = pedidos.find(item => item.id === pedidoId);
+	if (!p) return;
+
+	const clientes = JSON.parse(localStorage.getItem('clientes')) || [];
+	const cliObj = clientes.find(c => c.nome && c.nome.toLowerCase() === (p.cliente || '').toLowerCase());
+	const telLimpo = cliObj && cliObj.tel1 ? cliObj.tel1 : '';
+
+	if (typeof WhatsAppService !== 'undefined') {
+		WhatsAppService.abrirModalDisparo({
+			tipo: 'pronto',
+			dados: p,
+			telefone: telLimpo,
+			titulo: 'Avisar Conclusão & Veículo Pronto'
+		});
+	} else {
+		const msgWhats = `Olá ${p.cliente}! Seu veículo ${p.modelo || ''} (${p.placa}) está pronto para retirada!`;
+		window.open(`https://wa.me/55${(telLimpo || '').replace(/\D/g, '')}?text=${encodeURIComponent(msgWhats)}`, '_blank');
+	}
+}
+
+window.abrirDisparoWhatsAppCarroPronto = abrirDisparoWhatsAppCarroPronto;
+

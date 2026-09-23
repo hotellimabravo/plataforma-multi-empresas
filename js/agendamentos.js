@@ -277,19 +277,8 @@ function renderizarListaAgendamentos() {
 			statusBadge = `<span class="badge" style="background:#fee2e2; color:#b91c1c; border-color:#fecaca;">❌ Cancelado</span>`;
 		}
 
-		// Link direto de WhatsApp com lembrete e botão de Calendar
+		// Link e ação de WhatsApp com modal de pré-visualização e modelo personalizado
 		const linkCalendarWeb = typeof GoogleCalendarService !== 'undefined' ? GoogleCalendarService.gerarLinkWebCalendar(ag) : '#';
-		const telLimpo = (ag.clienteTelefone || '').replace(/\D/g, '');
-		const msgWhats = encodeURIComponent(
-			`Olá ${ag.clienteNome}! Confirmamos o seu agendamento no Danilo Detailer.\n` +
-			`📅 Data: ${formatarDataBR(ag.data)} às ${ag.hora}\n` +
-			`🚗 Veículo: ${ag.modelo || ''} (${ag.placa})\n` +
-			`🛠️ Serviços: ${ag.servicos}\n` +
-			`💰 Valor previsto: R$ ${parseFloat(ag.valor || 0).toFixed(2)}\n\n` +
-			`📅 Clique para salvar na sua Agenda Google: ${linkCalendarWeb}\n\n` +
-			`Aguardamos você!`
-		);
-		const linkWhats = telLimpo ? `https://wa.me/55${telLimpo}?text=${msgWhats}` : null;
 
 		tr.innerHTML = `
 			<td>
@@ -323,10 +312,10 @@ function renderizarListaAgendamentos() {
 						</button>
 					` : ''}
 
-					${linkWhats ? `
-						<a href="${linkWhats}" target="_blank" class="btn btn-sm btn-secondary" style="padding:4px 8px; font-size:0.78rem; color:#16a34a;" title="Enviar Lembrete e Link do Calendar via WhatsApp">
+					${ag.clienteTelefone ? `
+						<button type="button" class="btn btn-sm btn-secondary" style="padding:4px 8px; font-size:0.78rem; color:#16a34a; display:inline-flex; align-items:center; gap:4px;" onclick="abrirDisparoWhatsAppAgendamento('${ag.id}')" title="Enviar Lembrete e Detalhes via WhatsApp">
 							💬 WhatsApp
-						</a>
+						</button>
 					` : ''}
 
 					<a href="${linkCalendarWeb}" target="_blank" class="btn btn-sm btn-secondary" style="padding:4px 8px; font-size:0.78rem;" title="Adicionar ao Google Calendar no Navegador">
@@ -446,3 +435,26 @@ document.addEventListener('DOMContentLoaded', () => {
 	}
 	renderizarListaAgendamentos();
 });
+
+// Abertura do modal interativo de WhatsApp (Ideia 2 combinada com Ideia 1)
+function abrirDisparoWhatsAppAgendamento(agId) {
+	const ags = JSON.parse(localStorage.getItem('agendamentos')) || [];
+	const ag = ags.find(item => item.id === agId);
+	if (!ag) return;
+
+	if (typeof WhatsAppService !== 'undefined') {
+		WhatsAppService.abrirModalDisparo({
+			tipo: 'agendamento',
+			dados: ag,
+			telefone: ag.clienteTelefone,
+			titulo: 'Confirmar / Lembrar Agendamento'
+		});
+	} else {
+		const telLimpo = (ag.clienteTelefone || '').replace(/\D/g, '');
+		const msg = `Olá ${ag.clienteNome}! Confirmamos o seu agendamento em ${ag.data} às ${ag.hora}.`;
+		window.open(`https://wa.me/55${telLimpo}?text=${encodeURIComponent(msg)}`, '_blank');
+	}
+}
+
+window.abrirDisparoWhatsAppAgendamento = abrirDisparoWhatsAppAgendamento;
+
