@@ -57,9 +57,10 @@ function validatePasswordStrength(password) {
 
 // Criptografia Segura com Salt Aleatório e PBKDF2 (HMAC-SHA512 com 100.000 iterações)
 function hashPasswordSecure(password) {
-	const salt = crypto.randomBytes(16).toString('hex');
-	const hash = crypto.pbkdf2Sync(password, salt, 100000, 64, 'sha512').toString('hex');
-	return `pbkdf2$100000$${salt}$${hash}`;
+	const saltBytes = crypto.randomBytes(16);
+	const saltHex = saltBytes.toString('hex');
+	const hash = crypto.pbkdf2Sync(password, saltBytes, 100000, 64, 'sha512').toString('hex');
+	return `pbkdf2$100000$${saltHex}$${hash}`;
 }
 
 // Comparação Segura contra Timing Attacks (suporta formato moderno PBKDF2 e SHA-256 legado)
@@ -74,11 +75,22 @@ function verifyPassword(plainPassword, storedHash) {
 				const iterations = parseInt(parts[1], 10);
 				const salt = parts[2];
 				const originalHashHex = parts[3];
-				const testHashHex = crypto.pbkdf2Sync(plainPassword, salt, iterations, 64, 'sha512').toString('hex');
-				const bufA = Buffer.from(testHashHex, 'hex');
 				const bufB = Buffer.from(originalHashHex, 'hex');
-				if (bufA.length === bufB.length) {
-					return crypto.timingSafeEqual(bufA, bufB);
+
+				// 1. Tenta verificar decodificando o salt hexadecimal em Buffer (padrão Web Crypto / navegador)
+				if (/^[0-9a-fA-F]+$/.test(salt) && salt.length % 2 === 0) {
+					const testHashHexBuf = crypto.pbkdf2Sync(plainPassword, Buffer.from(salt, 'hex'), iterations, 64, 'sha512').toString('hex');
+					const bufA = Buffer.from(testHashHexBuf, 'hex');
+					if (bufA.length === bufB.length && crypto.timingSafeEqual(bufA, bufB)) {
+						return true;
+					}
+				}
+
+				// 2. Tenta verificar passando o salt como string bruta (caso tenha sido gerado com salt string)
+				const testHashHexStr = crypto.pbkdf2Sync(plainPassword, salt, iterations, 64, 'sha512').toString('hex');
+				const bufStr = Buffer.from(testHashHexStr, 'hex');
+				if (bufStr.length === bufB.length && crypto.timingSafeEqual(bufStr, bufB)) {
+					return true;
 				}
 			}
 		}
@@ -260,8 +272,28 @@ app.get('/manifest.json', (req, res) => {
 // Explicitly serve /js folder
 app.use('/js', express.static(path.join(__dirname, 'js')));
 
-// Serve static assets from root directory
-app.use(express.static(__dirname));
+// Middleware Anti-Cache para páginas HTML (evita bfcache do celular expondo dados após logout)
+app.use((req, res, next) => {
+	const p = req.path.toLowerCase();
+	if (p.endsWith('.html') || p === '/' || pages.some(page => p === `/${page}` || p === `/${page}/`)) {
+		res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+		res.setHeader('Pragma', 'no-cache');
+		res.setHeader('Expires', '0');
+		res.setHeader('Surrogate-Control', 'no-store');
+	}
+	next();
+});
+
+// Serve static assets from root directory com headers apropriados
+app.use(express.static(__dirname, {
+	setHeaders: (res, filePath) => {
+		if (filePath.endsWith('.html')) {
+			res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0');
+			res.setHeader('Pragma', 'no-cache');
+			res.setHeader('Expires', '0');
+		}
+	}
+}));
 
 // Route handlers for clean URLs (with or without trailing slash)
 const pages = [

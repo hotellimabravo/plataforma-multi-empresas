@@ -1,6 +1,6 @@
 import './error-guard.js';
 import './ui-feedback.js';
-import { initFirebase, db, auth, signInWithEmailAndPassword, signOut as fbSignOut, doc, getDoc, setDoc } from './firebase-init.js';
+import { initFirebase, db, auth, signInWithEmailAndPassword, signOut as fbSignOut, doc, getDoc, setDoc, deleteDoc } from './firebase-init.js';
 import './firebase-sync.js';
 import './empresa-service.js';
 import './pwa-install.js';
@@ -112,6 +112,57 @@ const AuthService = {
         localStorage.setItem('usuarios', JSON.stringify(users));
     },
 
+    async carregarUsuariosEmpresa() {
+        const currentUser = this.getCurrentUser();
+        const empresaId = currentUser?.empresaId || localStorage.getItem('master_active_empresaId');
+        if (!empresaId || !db) return this.getUsers();
+
+        try {
+            const snap = await getDoc(doc(db, 'empresas', empresaId, 'dados', 'usuarios'));
+            if (snap.exists()) {
+                const data = snap.data();
+                if (data && data.data) {
+                    const parsed = JSON.parse(data.data);
+                    if (Array.isArray(parsed)) {
+                        this.saveUsers(parsed);
+                        return parsed;
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Erro ao carregar usuários da empresa no Firestore:', e);
+        }
+        return this.getUsers();
+    },
+
+    async sincronizarUsuariosGlobais() {
+        if (!db) return;
+        try {
+            const users = this.getUsers();
+            const currentUser = this.getCurrentUser();
+            const empresaId = currentUser?.empresaId || localStorage.getItem('master_active_empresaId') || '';
+            for (const u of users) {
+                if (u && u.username && u.passwordHash) {
+                    const uName = u.username.toLowerCase().trim();
+                    const snap = await getDoc(doc(db, 'users', uName));
+                    if (!snap.exists()) {
+                        await setDoc(doc(db, 'users', uName), {
+                            id: u.id || uName,
+                            nome: u.nome || u.username,
+                            username: uName,
+                            passwordHash: u.passwordHash,
+                            empresaId: u.empresaId || empresaId,
+                            isMaster: false,
+                            permissoes: u.permissoes || []
+                        });
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('Aviso ao sincronizar usuários com a nuvem:', e);
+        }
+    },
+
     async addUser(nome, username, password, permissoes) {
         // Validação obrigatória da nova senha
         const check = this.validarForcaSenha(password);
@@ -119,19 +170,78 @@ const AuthService = {
             throw new Error(check.mensagem);
         }
 
-        const users = this.getUsers();
-        if (users.find(u => u.username.toLowerCase() === username.toLowerCase())) {
-            throw new Error('Nome de usuário já existe');
+        const cleanUsername = username.trim().toLowerCase();
+        if (!cleanUsername) {
+            throw new Error('Nome de usuário inválido.');
         }
+
+        if (cleanUsername === this.MASTER_USER.toLowerCase()) {
+            throw new Error('O nome de usuário "admin" é reservado para o Administrador Master.');
+        }
+
+        // Obtém a empresa atual vinculada
+        const currentUser = this.getCurrentUser();
+        const empresaId = currentUser?.empresaId || localStorage.getItem('master_active_empresaId') || '';
+
+        // 1. Verifica se já existe localmente
+        const users = this.getUsers();
+        if (users.find(u => u.username && u.username.toLowerCase() === cleanUsername)) {
+            throw new Error(`O usuário "${cleanUsername}" já existe nesta empresa.`);
+        }
+
+        // 2. Verifica unicidade global no Firestore (evita colisões entre empresas)
+        if (db) {
+            try {
+                const userDoc = await getDoc(doc(db, 'users', cleanUsername));
+                if (userDoc.exists()) {
+                    throw new Error(`O usuário "${cleanUsername}" já está em uso no sistema.`);
+                }
+            } catch (err) {
+                if (err.message && err.message.includes('já está em uso')) {
+                    throw err;
+                }
+                console.warn('Aviso ao checar unicidade de usuário no Firestore:', err);
+            }
+        }
+
+        // 3. Gera hash seguro (PBKDF2)
         const hash = await this.hashPassword(password);
-        users.push({
-            id: Date.now().toString(),
-            nome,
-            username,
+        const newId = Date.now().toString();
+
+        const newUser = {
+            id: newId,
+            nome: nome.trim(),
+            username: cleanUsername,
             passwordHash: hash,
-            permissoes: permissoes
-        });
+            empresaId: empresaId,
+            isMaster: false,
+            permissoes: Array.isArray(permissoes) ? permissoes : []
+        };
+
+        // 4. Salva no Firestore na coleção global 'users' para o login autenticar de qualquer tela/dispositivo
+        if (db) {
+            try {
+                await setDoc(doc(db, 'users', cleanUsername), newUser);
+            } catch (err) {
+                console.error('Erro ao salvar usuário no Firestore (users):', err);
+            }
+        }
+
+        // 5. Adiciona na lista local e salva na coleção privada da empresa
+        users.push(newUser);
         this.saveUsers(users);
+
+        if (db && empresaId) {
+            try {
+                await setDoc(doc(db, 'empresas', empresaId, 'dados', 'usuarios'), {
+                    data: JSON.stringify(users)
+                });
+            } catch (err) {
+                console.warn('Erro ao sincronizar subcoleção de usuários da empresa:', err);
+            }
+        }
+
+        return newUser;
     },
 
     async updateUser(id, nome, username, password, permissoes) {
@@ -139,26 +249,115 @@ const AuthService = {
         const index = users.findIndex(u => u.id === id);
         if (index === -1) throw new Error('Usuário não encontrado');
         
-        if (users.find(u => u.id !== id && u.username.toLowerCase() === username.toLowerCase())) {
-            throw new Error('Nome de usuário já existe');
+        const oldUser = users[index];
+        const oldUsername = (oldUser.username || '').toLowerCase().trim();
+        const cleanUsername = username.trim().toLowerCase();
+
+        if (!cleanUsername) {
+            throw new Error('Nome de usuário inválido.');
         }
-        users[index].nome = nome;
-        users[index].username = username;
-        users[index].permissoes = permissoes;
+
+        if (cleanUsername === this.MASTER_USER.toLowerCase() && !oldUser.isMaster) {
+            throw new Error('O nome de usuário "admin" é reservado para o Administrador Master.');
+        }
+
+        if (users.find(u => u.id !== id && u.username && u.username.toLowerCase() === cleanUsername)) {
+            throw new Error(`O usuário "${cleanUsername}" já existe nesta empresa.`);
+        }
+
+        // Se o username mudou, verifica unicidade global
+        if (oldUsername !== cleanUsername && db) {
+            try {
+                const userDoc = await getDoc(doc(db, 'users', cleanUsername));
+                if (userDoc.exists()) {
+                    throw new Error(`O usuário "${cleanUsername}" já está em uso no sistema.`);
+                }
+            } catch (err) {
+                if (err.message && err.message.includes('já está em uso')) {
+                    throw err;
+                }
+                console.warn('Aviso ao checar unicidade de usuário no Firestore:', err);
+            }
+        }
+
+        let newPasswordHash = oldUser.passwordHash;
         if (password && password.trim() !== '') {
             const check = this.validarForcaSenha(password);
             if (!check.valido) {
                 throw new Error(check.mensagem);
             }
-            users[index].passwordHash = await this.hashPassword(password);
+            newPasswordHash = await this.hashPassword(password);
         }
+
+        const currentUser = this.getCurrentUser();
+        const empresaId = oldUser.empresaId || currentUser?.empresaId || localStorage.getItem('master_active_empresaId') || '';
+
+        users[index].nome = nome.trim();
+        users[index].username = cleanUsername;
+        users[index].passwordHash = newPasswordHash;
+        users[index].permissoes = Array.isArray(permissoes) ? permissoes : [];
+        users[index].empresaId = empresaId;
+
+        // Atualiza no Firestore global 'users'
+        if (db) {
+            try {
+                if (oldUsername && oldUsername !== cleanUsername) {
+                    await deleteDoc(doc(db, 'users', oldUsername)).catch(() => {});
+                }
+                await setDoc(doc(db, 'users', cleanUsername), {
+                    id: users[index].id,
+                    nome: users[index].nome,
+                    username: cleanUsername,
+                    passwordHash: newPasswordHash,
+                    empresaId: empresaId,
+                    isMaster: !!oldUser.isMaster,
+                    permissoes: users[index].permissoes
+                });
+            } catch (err) {
+                console.error('Erro ao atualizar usuário no Firestore (users):', err);
+            }
+        }
+
         this.saveUsers(users);
+
+        if (db && empresaId) {
+            try {
+                await setDoc(doc(db, 'empresas', empresaId, 'dados', 'usuarios'), {
+                    data: JSON.stringify(users)
+                });
+            } catch (err) {}
+        }
+
+        return users[index];
     },
 
-    removerUser(id) {
+    async removerUser(id) {
         let users = this.getUsers();
+        const userToRemove = users.find(u => u.id === id);
+        if (!userToRemove) return;
+
+        const usernameNormalized = (userToRemove.username || '').toLowerCase().trim();
+        const empresaId = userToRemove.empresaId || this.getCurrentUser()?.empresaId || '';
+
+        // Remove do Firestore global 'users'
+        if (db && usernameNormalized) {
+            try {
+                await deleteDoc(doc(db, 'users', usernameNormalized));
+            } catch (err) {
+                console.warn('Erro ao remover usuário de users no Firestore:', err);
+            }
+        }
+
         users = users.filter(u => u.id !== id);
         this.saveUsers(users);
+
+        if (db && empresaId) {
+            try {
+                await setDoc(doc(db, 'empresas', empresaId, 'dados', 'usuarios'), {
+                    data: JSON.stringify(users)
+                });
+            } catch (err) {}
+        }
     },
 
     async login(username, password) {
@@ -317,23 +516,165 @@ const AuthService = {
         COLS.forEach(key => localStorage.removeItem(key));
     },
 
-    async logout() {
+    async logout(isAutoLogout = false) {
         this.limparCacheTenantLocal();
         localStorage.removeItem('logged_in_user');
         localStorage.removeItem('session_token');
         localStorage.removeItem('current_tenant_session');
+        localStorage.removeItem('last_active_timestamp');
+        if (this._inactivityInterval) clearInterval(this._inactivityInterval);
         if (window.FirebaseSync) window.FirebaseSync.stop();
         try {
             if (auth) await fbSignOut(auth);
         } catch (e) {
             console.error('Erro ao sair:', e ? (e.message || String(e)) : '');
         }
-        window.location.href = 'login.html';
+
+        if (isAutoLogout) {
+            sessionStorage.setItem('logout_reason', 'inactivity');
+            window.location.replace('login.html?reason=inactivity');
+        } else {
+            sessionStorage.removeItem('logout_reason');
+            window.location.replace('login.html');
+        }
     },
 
     getCurrentUser() {
         const data = localStorage.getItem('logged_in_user');
         return data ? JSON.parse(data) : null;
+    },
+
+    iniciarMonitorInatividade() {
+        const user = this.getCurrentUser();
+        const p = window.location.pathname;
+        const isLoginPage = p.endsWith('login.html') || p.endsWith('/login') || p === '/login' || p.endsWith('/login/');
+        if (!user || isLoginPage) return;
+
+        const TIMEOUT_MS = 10 * 60 * 1000; // 10 minutos de inatividade
+        let lastSave = 0;
+
+        const registrarAtividade = () => {
+            const now = Date.now();
+            if (now - lastSave > 5000) {
+                lastSave = now;
+                localStorage.setItem('last_active_timestamp', now.toString());
+            }
+        };
+
+        if (!localStorage.getItem('last_active_timestamp')) {
+            localStorage.setItem('last_active_timestamp', Date.now().toString());
+        }
+
+        const eventos = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
+        eventos.forEach(evt => {
+            window.addEventListener(evt, registrarAtividade, { passive: true });
+        });
+
+        if (this._inactivityInterval) clearInterval(this._inactivityInterval);
+        this._inactivityInterval = setInterval(() => {
+            const u = this.getCurrentUser();
+            if (!u) {
+                clearInterval(this._inactivityInterval);
+                return;
+            }
+            const last = parseInt(localStorage.getItem('last_active_timestamp') || '0', 10);
+            if (last > 0 && (Date.now() - last) >= TIMEOUT_MS) {
+                clearInterval(this._inactivityInterval);
+                console.warn('Sessão encerrada por 10 minutos de inatividade.');
+                this.logout(true);
+            }
+        }, 5000);
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') {
+                const last = parseInt(localStorage.getItem('last_active_timestamp') || '0', 10);
+                if (last > 0 && (Date.now() - last) >= TIMEOUT_MS) {
+                    this.logout(true);
+                } else {
+                    registrarAtividade();
+                }
+            }
+        });
+    },
+
+    configurarNavegacaoMobile() {
+        const p = window.location.pathname;
+        const isLoginPage = p.endsWith('login.html') || p.endsWith('/login') || p === '/login' || p.endsWith('/login/');
+        const isIndexPage = p.endsWith('index.html') || p === '/' || p.endsWith('/');
+        if (isLoginPage) return;
+
+        // 1. Intercepta links do menu e painel para usar replace() e nunca empilhar páginas no celular
+        const aplicarNavegacaoReplace = () => {
+            const seletores = [
+                '.navbar a',
+                '.header-actions a',
+                '#btnConfiguracoes',
+                '.brand-wrapper',
+                '.quick-actions a',
+                '.action-btn'
+            ];
+            
+            document.querySelectorAll(seletores.join(', ')).forEach(link => {
+                if (link.dataset.navBound === 'true') return;
+                link.dataset.navBound = 'true';
+                
+                link.addEventListener('click', (e) => {
+                    const href = link.getAttribute('href');
+                    if (!href || href.startsWith('#') || href.startsWith('javascript:')) return;
+                    
+                    if (href.endsWith('.html') || href.includes('.html?') || href.includes('.html#')) {
+                        e.preventDefault();
+                        window.location.replace(href);
+                    }
+                });
+            });
+        };
+
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', aplicarNavegacaoReplace);
+        } else {
+            aplicarNavegacaoReplace();
+        }
+
+        // 2. Controle do Botão "Voltar" (Back) no celular
+        if (!isIndexPage) {
+            // Em qualquer submódulo (Agenda, Caixa, O.S., Estoque, Configurações, etc.):
+            // Injeta um estado inicial para capturar o botão voltar nativo
+            try {
+                history.pushState({ modulo: true }, '', window.location.href);
+            } catch (err) {}
+
+            window.addEventListener('popstate', () => {
+                // Ao pressionar voltar no celular dentro de um módulo, volta diretamente ao Início sem empilhar
+                window.location.replace('index.html');
+            });
+        } else {
+            // Na página principal (Início):
+            try {
+                history.pushState({ inicio: true }, '', window.location.href);
+            } catch (err) {}
+
+            let backPressCount = 0;
+            let backTimeout = null;
+
+            window.addEventListener('popstate', () => {
+                backPressCount++;
+                if (backPressCount === 1) {
+                    if (window.UI) {
+                        window.UI.toast('Pressione voltar novamente para sair', 'info');
+                    }
+                    try {
+                        history.pushState({ inicio: true }, '', window.location.href);
+                    } catch (err) {}
+                    backTimeout = setTimeout(() => {
+                        backPressCount = 0;
+                    }, 2500);
+                } else {
+                    clearTimeout(backTimeout);
+                    history.back();
+                }
+            });
+        }
     },
 
     async checkAuth() {
@@ -342,12 +683,12 @@ const AuthService = {
         const isLoginPage = p.endsWith('login.html') || p.endsWith('/login') || p === '/login' || p.endsWith('/login/');
         
         if (!user && !isLoginPage) {
-            window.location.href = 'login.html';
+            window.location.replace('login.html');
             return;
         }
         
         if (user && isLoginPage) {
-            window.location.href = 'index.html';
+            window.location.replace('index.html');
             return;
         }
 
@@ -375,6 +716,8 @@ const AuthService = {
 
         if (user && !isLoginPage) {
             if (window.FirebaseSync) window.FirebaseSync.start();
+            this.iniciarMonitorInatividade();
+            this.configurarNavegacaoMobile();
         }
 
         if (user && !user.isMaster && !isLoginPage) {
@@ -404,7 +747,7 @@ const AuthService = {
         if (currentModule && !this.hasPermission(currentModule)) {
             if (window.UI) window.UI.toast('Seu usuário não tem permissão para acessar esta área.', 'error');
             else alert('Seu usuário não tem permissão para acessar esta área.');
-            window.location.href = 'index.html';
+            window.location.replace('index.html');
         }
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -431,6 +774,13 @@ const AuthService = {
 
 window.AuthService = AuthService;
 AuthService.checkAuth();
+
+// Proteção contra Bfcache do navegador no celular (evita reabrir sessão após logout)
+window.addEventListener('pageshow', (event) => {
+    if (event.persisted || (window.performance && window.performance.navigation && window.performance.navigation.type === 2)) {
+        AuthService.checkAuth();
+    }
+});
 
 export default AuthService;
 export { AuthService };

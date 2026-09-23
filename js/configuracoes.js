@@ -58,6 +58,9 @@ function alternarAbaConfig(aba) {
 	} else if (aba === 'usuarios') {
 		if (tabUsuarios) tabUsuarios.classList.add('active');
 		if (conteudoUsuarios) conteudoUsuarios.style.display = 'block';
+		if (typeof window.renderizarUsuarios === 'function') {
+			window.renderizarUsuarios();
+		}
 	} else if (aba === 'equipe') {
 		if (tabEquipe) tabEquipe.classList.add('active');
 		if (conteudoEquipe) conteudoEquipe.style.display = 'block';

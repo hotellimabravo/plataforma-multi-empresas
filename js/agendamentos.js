@@ -376,7 +376,7 @@ window.iniciarOSDoAgendamento = function (id) {
 	salvarAgendamentos(agendamentos);
 
 	// Redireciona para a tela de pedidos com mensagem
-	window.location.href = 'pedidos.html';
+	window.location.replace('pedidos.html');
 };
 
 // Cancelar Agendamento

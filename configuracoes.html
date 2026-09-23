@@ -1037,8 +1037,14 @@
 			// ==========================================
 			// Lógica de Usuários
 			// ==========================================
-			function renderizarUsuarios() {
-				const users = AuthService.getUsers();
+			async function renderizarUsuarios() {
+				let users = AuthService.getUsers();
+				if ((!users || users.length === 0) && typeof AuthService.carregarUsuariosEmpresa === 'function') {
+					users = await AuthService.carregarUsuariosEmpresa();
+				}
+				if (typeof AuthService.sincronizarUsuariosGlobais === 'function') {
+					AuthService.sincronizarUsuariosGlobais().catch(() => {});
+				}
 				const corpo = document.getElementById('corpoTabelaUsuarios');
 				if (!corpo) return;
 
@@ -1069,6 +1075,7 @@
 					`;
 				});
 			}
+			window.renderizarUsuarios = renderizarUsuarios;
 
 			function atualizarIndicadorSenha(pass, prefixo) {
 				const check = AuthService.validarForcaSenha(pass);
@@ -1182,10 +1189,16 @@
 				alternarAbaConfig('usuarios');
 			};
 
-			window.removerUsuario = function(id) {
+			window.removerUsuario = async function(id) {
 				if (confirm('Tem certeza que deseja remover este usuário?')) {
-					AuthService.removerUser(id);
-					renderizarUsuarios();
+					try {
+						await AuthService.removerUser(id);
+						if (window.UI) window.UI.toast('Usuário removido com sucesso.', 'success');
+						renderizarUsuarios();
+					} catch (e) {
+						if (window.UI) window.UI.toast('Erro ao remover usuário: ' + e.message, 'error');
+						else alert('Erro ao remover usuário: ' + e.message);
+					}
 				}
 			};
 
@@ -1273,6 +1286,12 @@
 				}
 				
 				renderizarUsuarios();
+
+				window.addEventListener('cloudDataChanged', (e) => {
+					if (e.detail === 'usuarios') {
+						renderizarUsuarios();
+					}
+				});
 			});
 		</script>
 

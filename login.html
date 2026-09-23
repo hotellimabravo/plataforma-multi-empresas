@@ -158,6 +158,7 @@
 			<span>🛡️ Autenticação Criptografada (PBKDF2 + HMAC)</span>
 		</div>
 
+		<div id="sessionNotice" class="error-msg" style="background: #fffbeb; color: #b45309; border: 1px solid #fde68a; display: none; margin-bottom: 16px;">⏳ Sua sessão expirou após 10 minutos de inatividade para a sua segurança. Faça login novamente.</div>
 		<div id="loginError" class="error-msg">Usuário ou senha incorretos.</div>
 
 		<form id="formLogin">
@@ -178,6 +179,22 @@
 
 	<script type="module">
 		import AuthService from './js/auth-service.js';
+
+		// Impede que o botão voltar do celular reabra telas autenticadas em cache após logout
+		try {
+			history.pushState(null, '', window.location.href);
+			window.addEventListener('popstate', () => {
+				history.pushState(null, '', window.location.href);
+			});
+		} catch (e) {}
+
+		// Exibe alerta caso tenha ocorrido encerramento automático por 10 minutos de inatividade
+		const urlParams = new URLSearchParams(window.location.search);
+		const noticeBox = document.getElementById('sessionNotice');
+		if (urlParams.get('reason') === 'inactivity' || sessionStorage.getItem('logout_reason') === 'inactivity') {
+			if (noticeBox) noticeBox.style.display = 'block';
+			sessionStorage.removeItem('logout_reason');
+		}
 
 		const inputPass = document.getElementById('inputPass');
 		const btnToggle = document.getElementById('btnToggleLoginPass');
@@ -200,11 +217,12 @@
 			btn.disabled = true;
 			btn.textContent = 'Autenticando...';
 			errorBox.style.display = 'none';
+			if (noticeBox) noticeBox.style.display = 'none';
 
 			try {
 				const success = await AuthService.login(user, pass);
 				if (success) {
-					window.location.href = 'index.html';
+					window.location.replace('index.html');
 				} else {
 					errorBox.style.display = 'block';
 					btn.disabled = false;
