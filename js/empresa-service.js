@@ -116,7 +116,11 @@ const EmpresaService = {
         const activeEmpresa = this.getEmpresaAtiva();
         if (!user.empresaId || user.empresaId === 'empresa_master') {
             user.empresaId = activeEmpresa.id;
-            localStorage.setItem('logged_in_user', JSON.stringify(user));
+            if (AuthService && AuthService.setCurrentUser) {
+                AuthService.setCurrentUser(user);
+            } else {
+                sessionStorage.setItem('logged_in_user', JSON.stringify(user));
+            }
         }
 
         // Injeta o seletor no header se não existir
@@ -166,9 +170,13 @@ const EmpresaService = {
 
         // Atualiza empresa no usuário logado
         user.empresaId = target.id;
-        localStorage.setItem('logged_in_user', JSON.stringify(user));
+        if (AuthService && AuthService.setCurrentUser) {
+            AuthService.setCurrentUser(user);
+        } else {
+            sessionStorage.setItem('logged_in_user', JSON.stringify(user));
+        }
         localStorage.setItem('master_active_empresaId', target.id);
-        localStorage.setItem('current_tenant_session', target.id);
+        sessionStorage.setItem('current_tenant_session', target.id);
 
         // Limpa coleções temporárias para recarregar da nova empresa sem resquícios
         const COLS = [
@@ -360,7 +368,11 @@ const EmpresaService = {
                 user.empresaId = '';
                 localStorage.removeItem('master_active_empresaId');
             }
-            localStorage.setItem('logged_in_user', JSON.stringify(user));
+            if (AuthService && AuthService.setCurrentUser) {
+                AuthService.setCurrentUser(user);
+            } else {
+                sessionStorage.setItem('logged_in_user', JSON.stringify(user));
+            }
         }
 
         return remaining;

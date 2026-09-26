@@ -5,6 +5,15 @@ import './firebase-sync.js';
 import './empresa-service.js';
 import './pwa-install.js';
 
+// Higienização de sessão persistente legada:
+// Garante que logins antigos salvos no localStorage sejam removidos para respeitar o controle estrito de sessão por aba/janela
+try {
+    localStorage.removeItem('logged_in_user');
+    localStorage.removeItem('session_token');
+    localStorage.removeItem('current_tenant_session');
+    localStorage.removeItem('last_active_timestamp');
+} catch (e) {}
+
 const AuthService = {
     MASTER_USER: 'admin',
     MASTER_HASH: 'cf3ba79fe53bf2417903fbde744a088e4e0ca0ca877ee76dcd174011ce5a43dd',
@@ -406,15 +415,15 @@ const AuthService = {
                 const data = await resp.json();
                 if (data && data.success && data.user) {
                     if (data.token) {
-                        localStorage.setItem('session_token', data.token);
+                        sessionStorage.setItem('session_token', data.token);
                     }
                     const targetEmpresa = data.user.empresaId || activeEmpresa;
-                    const prevTenant = localStorage.getItem('current_tenant_session');
+                    const prevTenant = sessionStorage.getItem('current_tenant_session') || localStorage.getItem('current_tenant_session');
                     if (prevTenant !== targetEmpresa) {
                         this.limparCacheTenantLocal();
-                        localStorage.setItem('current_tenant_session', targetEmpresa);
+                        sessionStorage.setItem('current_tenant_session', targetEmpresa);
                     }
-                    localStorage.setItem('logged_in_user', JSON.stringify(data.user));
+                    this.setCurrentUser(data.user);
                     if (window.FirebaseSync) window.FirebaseSync.start();
                     return true;
                 }
@@ -438,12 +447,12 @@ const AuthService = {
                 isMaster: true, 
                 empresaId: activeEmpresa 
             };
-            const prevTenant = localStorage.getItem('current_tenant_session');
+            const prevTenant = sessionStorage.getItem('current_tenant_session') || localStorage.getItem('current_tenant_session');
             if (prevTenant !== activeEmpresa) {
                 this.limparCacheTenantLocal();
-                localStorage.setItem('current_tenant_session', activeEmpresa);
+                sessionStorage.setItem('current_tenant_session', activeEmpresa);
             }
-            localStorage.setItem('logged_in_user', JSON.stringify(masterData));
+            this.setCurrentUser(masterData);
             if (window.FirebaseSync) window.FirebaseSync.start();
             return true;
         }
@@ -484,10 +493,10 @@ const AuthService = {
 
                 if (match) {
                     const targetEmpresa = u.empresaId || activeEmpresa;
-                    const prevTenant = localStorage.getItem('current_tenant_session');
+                    const prevTenant = sessionStorage.getItem('current_tenant_session') || localStorage.getItem('current_tenant_session');
                     if (prevTenant !== targetEmpresa) {
                         this.limparCacheTenantLocal();
-                        localStorage.setItem('current_tenant_session', targetEmpresa);
+                        sessionStorage.setItem('current_tenant_session', targetEmpresa);
                     }
                     const sessionData = {
                         id: u.id || usernameNormalized,
@@ -497,7 +506,7 @@ const AuthService = {
                         empresaId: targetEmpresa,
                         permissoes: u.permissoes || []
                     };
-                    localStorage.setItem('logged_in_user', JSON.stringify(sessionData));
+                    this.setCurrentUser(sessionData);
                     if (window.FirebaseSync) window.FirebaseSync.start();
                     return true;
                 }
@@ -518,6 +527,10 @@ const AuthService = {
 
     async logout(isAutoLogout = false) {
         this.limparCacheTenantLocal();
+        sessionStorage.removeItem('logged_in_user');
+        sessionStorage.removeItem('session_token');
+        sessionStorage.removeItem('current_tenant_session');
+        sessionStorage.removeItem('last_active_timestamp');
         localStorage.removeItem('logged_in_user');
         localStorage.removeItem('session_token');
         localStorage.removeItem('current_tenant_session');
@@ -540,8 +553,22 @@ const AuthService = {
     },
 
     getCurrentUser() {
-        const data = localStorage.getItem('logged_in_user');
-        return data ? JSON.parse(data) : null;
+        try {
+            const data = sessionStorage.getItem('logged_in_user');
+            return data ? JSON.parse(data) : null;
+        } catch (e) {
+            return null;
+        }
+    },
+
+    setCurrentUser(user) {
+        try {
+            if (!user) {
+                sessionStorage.removeItem('logged_in_user');
+            } else {
+                sessionStorage.setItem('logged_in_user', typeof user === 'string' ? user : JSON.stringify(user));
+            }
+        } catch (e) {}
     },
 
     iniciarMonitorInatividade() {
@@ -557,12 +584,12 @@ const AuthService = {
             const now = Date.now();
             if (now - lastSave > 5000) {
                 lastSave = now;
-                localStorage.setItem('last_active_timestamp', now.toString());
+                sessionStorage.setItem('last_active_timestamp', now.toString());
             }
         };
 
-        if (!localStorage.getItem('last_active_timestamp')) {
-            localStorage.setItem('last_active_timestamp', Date.now().toString());
+        if (!sessionStorage.getItem('last_active_timestamp')) {
+            sessionStorage.setItem('last_active_timestamp', Date.now().toString());
         }
 
         const eventos = ['mousedown', 'mousemove', 'keydown', 'touchstart', 'scroll', 'click'];
@@ -577,7 +604,7 @@ const AuthService = {
                 clearInterval(this._inactivityInterval);
                 return;
             }
-            const last = parseInt(localStorage.getItem('last_active_timestamp') || '0', 10);
+            const last = parseInt(sessionStorage.getItem('last_active_timestamp') || '0', 10);
             if (last > 0 && (Date.now() - last) >= TIMEOUT_MS) {
                 clearInterval(this._inactivityInterval);
                 console.warn('Sessão encerrada por 10 minutos de inatividade.');
@@ -587,7 +614,7 @@ const AuthService = {
 
         document.addEventListener('visibilitychange', () => {
             if (document.visibilityState === 'visible') {
-                const last = parseInt(localStorage.getItem('last_active_timestamp') || '0', 10);
+                const last = parseInt(sessionStorage.getItem('last_active_timestamp') || '0', 10);
                 if (last > 0 && (Date.now() - last) >= TIMEOUT_MS) {
                     this.logout(true);
                 } else {
@@ -693,7 +720,7 @@ const AuthService = {
         }
 
         // Validação criptográfica assíncrona do Token de Sessão se estiver logado
-        const token = localStorage.getItem('session_token');
+        const token = sessionStorage.getItem('session_token');
         if (user && token && !isLoginPage) {
             try {
                 const resp = await fetch('/api/auth/verify-session', {
