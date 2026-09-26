@@ -9,8 +9,65 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = 3000;
 
-// Middleware para processar JSON nas requisições
-app.use(express.json());
+// 1. Defesas de Cabeçalhos HTTP e Ocultação de Tecnologias (Fingerprinting)
+app.disable('x-powered-by');
+
+app.use((req, res, next) => {
+	res.setHeader('X-Content-Type-Options', 'nosniff');
+	res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+	res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+	res.setHeader('X-XSS-Protection', '1; mode=block');
+	next();
+});
+
+// Middleware para processar JSON nas requisições com limite seguro contra sobrecarga de memória (DoS)
+app.use(express.json({ limit: '10mb' }));
+
+// 2. Proteção Inteligente contra Ataques de Força Bruta (Rate Limiting)
+const loginAttempts = new Map();
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_TIME_MS = 15 * 60 * 1000; // 15 minutos de bloqueio temporário
+
+function checkRateLimit(key) {
+	const now = Date.now();
+	const record = loginAttempts.get(key);
+	if (!record) return { allowed: true, remaining: MAX_LOGIN_ATTEMPTS };
+
+	if (record.lockedUntil && now < record.lockedUntil) {
+		const remainingMinutes = Math.ceil((record.lockedUntil - now) / 60000);
+		return { allowed: false, remainingMinutes };
+	}
+
+	if (now - record.firstAttempt > LOCK_TIME_MS) {
+		loginAttempts.delete(key);
+		return { allowed: true, remaining: MAX_LOGIN_ATTEMPTS };
+	}
+
+	if (record.count >= MAX_LOGIN_ATTEMPTS) {
+		record.lockedUntil = now + LOCK_TIME_MS;
+		const remainingMinutes = Math.ceil(LOCK_TIME_MS / 60000);
+		return { allowed: false, remainingMinutes };
+	}
+
+	return { allowed: true, remaining: MAX_LOGIN_ATTEMPTS - record.count };
+}
+
+function recordFailedLogin(key, ip, username) {
+	const now = Date.now();
+	const record = loginAttempts.get(key) || { count: 0, firstAttempt: now, lockedUntil: 0 };
+	record.count += 1;
+	if (record.count >= MAX_LOGIN_ATTEMPTS) {
+		record.lockedUntil = now + LOCK_TIME_MS;
+		console.warn(`[AUDITORIA DE SEGURANÇA] Bloqueio por força bruta acionado para ${username || 'anônimo'} (${ip}) por 15 minutos.`);
+	} else {
+		console.warn(`[AUDITORIA DE SEGURANÇA] Falha de autenticação para usuário '${username}' a partir do IP ${ip} (tentativa ${record.count}/${MAX_LOGIN_ATTEMPTS}).`);
+	}
+	loginAttempts.set(key, record);
+}
+
+function clearLoginAttempts(key) {
+	loginAttempts.delete(key);
+}
 
 // Segredo do Servidor para Assinatura de Sessões (HMAC-SHA256)
 const SESSION_SECRET = process.env.SESSION_SECRET || 'lava_jato_saas_ultra_secure_secret_key_2026_antigravity';
@@ -179,8 +236,9 @@ app.post('/api/auth/hash', (req, res) => {
 	return res.json({ hash, valid: true });
 });
 
-// 3. Login Centralizado com Verificação Criptográfica
-app.post('/api/auth/login', (req, res) => {
+// 3. Login Centralizado com Verificação Criptográfica e Proteção contra Força Bruta
+app.post('/api/auth/login', async (req, res) => {
+	const clientIp = req.headers['x-forwarded-for'] || req.socket.remoteAddress || '127.0.0.1';
 	const { username, password, localUsers, cloudUsers } = req.body || {};
 
 	if (!username || !password) {
@@ -188,6 +246,19 @@ app.post('/api/auth/login', (req, res) => {
 	}
 
 	const normalizedUser = username.trim().toLowerCase();
+	const rateLimitKey = `${clientIp}:${normalizedUser}`;
+
+	// Verificação de Limite de Tentativas (Rate Limiting)
+	const rateCheck = checkRateLimit(rateLimitKey);
+	if (!rateCheck.allowed) {
+		return res.status(429).json({
+			success: false,
+			message: `Muitas tentativas incorretas. Conta temporariamente bloqueada por segurança. Tente novamente em ${rateCheck.remainingMinutes} minuto(s).`
+		});
+	}
+
+	// Delay artificial mínimo (250ms) para amortecer ataques automatizados em lote
+	await new Promise(resolve => setTimeout(resolve, 250));
 
 	// 1. VERIFICAÇÃO DO USUÁRIO MASTER
 	if (normalizedUser === MASTER_USER) {
@@ -201,6 +272,8 @@ app.post('/api/auth/login', (req, res) => {
 		}
 
 		if (isMasterValid) {
+			clearLoginAttempts(rateLimitKey);
+			console.log(`[AUDITORIA DE SEGURANÇA] Login bem-sucedido: MASTER '${MASTER_USER}' via ${clientIp}`);
 			const masterUser = {
 				id: 'master',
 				nome: 'Administrador Master',
@@ -223,6 +296,8 @@ app.post('/api/auth/login', (req, res) => {
 		if (u && u.username && u.username.toLowerCase().trim() === normalizedUser) {
 			const storedHash = u.passwordHash;
 			if (storedHash && verifyPassword(password, storedHash)) {
+				clearLoginAttempts(rateLimitKey);
+				console.log(`[AUDITORIA DE SEGURANÇA] Login bem-sucedido: Usuário '${normalizedUser}' via ${clientIp}`);
 				const sessionUser = {
 					id: u.id || normalizedUser,
 					nome: u.nome || u.username,
@@ -237,6 +312,7 @@ app.post('/api/auth/login', (req, res) => {
 		}
 	}
 
+	recordFailedLogin(rateLimitKey, clientIp, normalizedUser);
 	return res.status(401).json({ success: false, message: 'Usuário ou senha incorretos.' });
 });
 

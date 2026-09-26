@@ -224,13 +224,14 @@
 				if (success) {
 					window.location.replace('index.html');
 				} else {
+					errorBox.textContent = 'Usuário ou senha incorretos.';
 					errorBox.style.display = 'block';
 					btn.disabled = false;
 					btn.textContent = 'Entrar';
 				}
 			} catch (err) {
 				console.error(err);
-				errorBox.textContent = 'Erro ao fazer login.';
+				errorBox.textContent = (err && err.message) ? err.message : 'Erro ao fazer login.';
 				errorBox.style.display = 'block';
 				btn.disabled = false;
 				btn.textContent = 'Entrar';

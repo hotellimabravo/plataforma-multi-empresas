@@ -114,4 +114,15 @@
             }
         }
     });
+
+    // 5. Função de escape estrito contra injeção de HTML / XSS em saídas dinâmicas
+    window.escapeHTML = function(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    };
 })();

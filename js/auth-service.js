@@ -427,10 +427,17 @@ const AuthService = {
                     if (window.FirebaseSync) window.FirebaseSync.start();
                     return true;
                 }
+            } else if (resp.status === 429) {
+                const data = await resp.json().catch(() => ({}));
+                const msg = data.message || 'Muitas tentativas incorretas. Conta temporariamente bloqueada por segurança.';
+                throw new Error(msg);
             } else if (resp.status === 401) {
                 return false;
             }
         } catch (err) {
+            if (err && err.message && (err.message.includes('Muitas tentativas') || err.message.includes('bloqueada'))) {
+                throw err;
+            }
             console.warn('API de login do servidor inacessível, testando fallback local:', err);
         }
 
